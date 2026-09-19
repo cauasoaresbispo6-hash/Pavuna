@@ -1,0 +1,14 @@
+{
+  "name": "pavuna-edital-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord de edital, exoneração, promoção e blacklist para Pavuna.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.0",
+    "dotenv": "^16.4.7"
+  }
+}
