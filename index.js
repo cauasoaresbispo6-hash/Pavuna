@@ -4393,16 +4393,25 @@ function commandBuilders() {
 
   return [
 
-    /* =====================================================
-       PAINEL
-    ===================================================== */
+/* =====================================================
+   PAINEL
+===================================================== */
 
-    new SlashCommandBuilder()
+new SlashCommandBuilder()
 
-      .setName(
-        'painel'
-      )
+  .setName(
+    'painel'
+  )
 
+  .setDescription(
+    '🏴 Gerencia os painéis da Pavuna'
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName('ticket')
+      .setDescription('🎫 Envia o painel de tickets')
+  )
       .setDescription(
         '🏴 Gerencia os painéis da Pavuna'
       )
