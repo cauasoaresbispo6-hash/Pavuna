@@ -10,7 +10,10 @@ const {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } = require('discord.js');
 
 require('dotenv').config();
@@ -22,6 +25,9 @@ require('dotenv').config();
 const CONFIG = {
   imageUrl:
     'https://media.discordapp.net/attachments/1550653825659183144/1550714361973051474/Captura_de_tela_2026-09-19_004348.png?ex=6aaf56ca&is=6aae054a&hm=fd4f3deb9bbe0a581417d2504740aecfd43e72995527cc5bfb8804ec21f06eec&=&format=webp&quality=lossless',
+
+  registrarImageUrl:
+    'https://media.discordapp.net/attachments/1494717315743350836/1550919367339024384/648a4579-c535-4be5-b1ce-796cc37e6378.png?ex=6ab015b7&is=6aaec437&hm=9f3aaca3870b2a7156ada9d41fabb1613431204ea54008448c2199eb68baa925&=&format=webp&quality=lossless&width=768&height=317',
 
   panelRoles: [
     '1550615266046644259',
@@ -229,10 +235,14 @@ function formatDuration(minutes) {
 }
 
 
+/* ======================================================
+   PAINEL EDITAL
+====================================================== */
+
 function panelEmbed() {
   return new EmbedBuilder()
     .setColor(0x8b0000)
-    .setTitle('📜  EDITAL • PAVUNA')
+    .setTitle('📜 EDITAL • PAVUNA')
     .setDescription(
       [
         '### 🏴 Processo de Recrutamento',
@@ -272,6 +282,203 @@ function panelRow() {
 }
 
 
+/* ======================================================
+   PAINEL REGISTRO
+====================================================== */
+
+function registrarEmbed() {
+  return new EmbedBuilder()
+    .setColor(0x8b0000)
+    .setTitle('📋 REGISTRO • PAVUNA')
+    .setDescription(
+      [
+        '### 🏴 Sistema de Registro',
+        '',
+        'Bem-vindo ao sistema oficial de registro da **Pavuna**.',
+        '',
+        'Clique no botão abaixo para realizar seu registro.',
+        '',
+        '**📌 Como funciona:**',
+        '> 1. Clique em **📝 Registrar**.',
+        '> 2. Informe seu **Nick**.',
+        '> 3. Informe seu **ID**.',
+        '> 4. Seu nome será atualizado automaticamente.',
+        '',
+        '**📋 Formato do nome:**',
+        '> `⋆ 𝓟𝓥𝓝 ⋆ 𝓝𝓞𝓜𝓔 ⋆𝓘𝓓`',
+        '',
+        '**Exemplo:**',
+        '> `⋆ 𝓟𝓥𝓝 ⋆ 𝓫𝓲𝓼𝓹𝓸 ⋆1325`',
+        '',
+        '⚠️ **Informe os dados corretamente.**'
+      ].join('\n')
+    )
+    .setImage(CONFIG.registrarImageUrl)
+    .setFooter({
+      text: 'Pavuna • Sistema de Registro'
+    })
+    .setTimestamp();
+}
+
+
+function registrarRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('abrir_registro')
+      .setLabel('Registrar')
+      .setEmoji('📝')
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+
+async function abrirModalRegistro(interaction) {
+  const modal = new ModalBuilder()
+    .setCustomId('modal_registro')
+    .setTitle('📋 Registro • Pavuna');
+
+  const nickInput = new TextInputBuilder()
+    .setCustomId('registro_nick')
+    .setLabel('Qual é o seu Nick?')
+    .setPlaceholder('Ex: bispo')
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(1)
+    .setMaxLength(20)
+    .setRequired(true);
+
+  const idInput = new TextInputBuilder()
+    .setCustomId('registro_id')
+    .setLabel('Qual é o seu ID?')
+    .setPlaceholder('Ex: 1325')
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(1)
+    .setMaxLength(10)
+    .setRequired(true);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(nickInput),
+    new ActionRowBuilder().addComponents(idInput)
+  );
+
+  return interaction.showModal(modal);
+}
+
+
+async function realizarRegistro(interaction) {
+  const nick =
+    interaction.fields
+      .getTextInputValue('registro_nick')
+      .trim();
+
+  const id =
+    interaction.fields
+      .getTextInputValue('registro_id')
+      .trim();
+
+  if (!nick || !id) {
+    return interaction.reply({
+      content: '❌ Nick e ID são obrigatórios.',
+      ephemeral: true
+    });
+  }
+
+  if (!/^\d+$/.test(id)) {
+    return interaction.reply({
+      content: '❌ O ID deve conter somente números.',
+      ephemeral: true
+    });
+  }
+
+  const novoNome =
+    `⋆ 𝓟𝓥𝓝 ⋆ ${nick} ⋆${id}`;
+
+  if (novoNome.length > 32) {
+    return interaction.reply({
+      content:
+        '❌ O nome ficou muito grande. Diminua o Nick e tente novamente.',
+      ephemeral: true
+    });
+  }
+
+  const member =
+    interaction.member;
+
+  if (!member || !member.manageable) {
+    return interaction.reply({
+      content:
+        '❌ Não consigo alterar seu apelido. Verifique se o bot possui **Gerenciar Apelidos** e está acima do seu cargo.',
+      ephemeral: true
+    });
+  }
+
+  try {
+    await member.setNickname(
+      novoNome,
+      `Registro Pavuna • ID ${id}`
+    );
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setTitle('✅ REGISTRO CONCLUÍDO')
+          .setDescription(
+            [
+              `👤 **Membro:** ${member}`,
+              '',
+              `🏷️ **Nick:** ${nick}`,
+              `🆔 **ID:** ${id}`,
+              '',
+              '**Novo nome:**',
+              `> ${novoNome}`,
+              '',
+              '🎉 Seu registro foi realizado com sucesso!'
+            ].join('\n')
+          )
+          .setFooter({
+            text: 'Pavuna • Sistema de Registro'
+          })
+          .setTimestamp()
+      ],
+      ephemeral: true
+    });
+
+    await sendLog(
+      interaction.guild,
+      [
+        '📝 **NOVO REGISTRO**',
+        '',
+        `👤 Membro: <@${member.id}>`,
+        `🏷️ Nick: ${nick}`,
+        `🆔 ID: ${id}`,
+        `📋 Nome: ${novoNome}`
+      ].join('\n')
+    );
+
+  } catch (error) {
+    console.error(
+      'Erro no registro:',
+      error
+    );
+
+    if (
+      !interaction.replied &&
+      !interaction.deferred
+    ) {
+      await interaction.reply({
+        content:
+          '❌ Não foi possível alterar seu nome. Verifique a permissão **Gerenciar Apelidos** e a hierarquia do bot.',
+        ephemeral: true
+      });
+    }
+  }
+}
+
+
+/* ======================================================
+   EDITAL
+====================================================== */
+
 function startRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -303,7 +510,11 @@ function answerButtons(questionNumber) {
 }
 
 
-function questionEmbed(q, startedAt, deadline) {
+function questionEmbed(
+  q,
+  startedAt,
+  deadline
+) {
   const embed = new EmbedBuilder()
     .setColor(0x8b0000)
     .setTitle(
@@ -337,11 +548,16 @@ function questionEmbed(q, startedAt, deadline) {
 }
 
 
-async function sendLog(guild, content) {
+async function sendLog(
+  guild,
+  content
+) {
   if (!CONFIG.logChannelId) return;
 
   const channel =
-    guild.channels.cache.get(CONFIG.logChannelId);
+    guild.channels.cache.get(
+      CONFIG.logChannelId
+    );
 
   if (!channel?.isTextBased()) return;
 
@@ -351,9 +567,13 @@ async function sendLog(guild, content) {
 }
 
 
-async function deleteAfter(channel, reason) {
+async function deleteAfter(
+  channel,
+  reason
+) {
   setTimeout(() => {
-    channel.delete(reason).catch(() => {});
+    channel.delete(reason)
+      .catch(() => {});
   }, CONFIG.closeAfterMs);
 }
 
@@ -376,7 +596,10 @@ async function closeChannel(
     ]
   }).catch(() => {});
 
-  deleteAfter(channel, reason);
+  deleteAfter(
+    channel,
+    reason
+  );
 }
 
 
@@ -384,19 +607,26 @@ async function closeChannel(
    CRIAR CANAL DO EDITAL
 ====================================================== */
 
-async function createEditalChannel(interaction) {
-  const guild = interaction.guild;
-  const member = interaction.member;
+async function createEditalChannel(
+  interaction
+) {
+  const guild =
+    interaction.guild;
+
+  const member =
+    interaction.member;
 
   if (!guild || !member) {
     return interaction.reply({
-      content: '❌ Não foi possível iniciar o edital.',
+      content:
+        '❌ Não foi possível iniciar o edital.',
       ephemeral: true
     });
   }
 
   if (sessions.has(member.id)) {
-    const session = sessions.get(member.id);
+    const session =
+      sessions.get(member.id);
 
     return interaction.reply({
       content:
@@ -425,14 +655,16 @@ async function createEditalChannel(interaction) {
       ]
     },
 
-    ...CONFIG.editalAccessRoles.map(roleId => ({
-      id: roleId,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory
-      ]
-    })),
+    ...CONFIG.editalAccessRoles.map(
+      roleId => ({
+        id: roleId,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory
+        ]
+      })
+    ),
 
     {
       id: member.id,
@@ -457,21 +689,30 @@ async function createEditalChannel(interaction) {
   const safeName =
     member.user.username
       .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
+      .replace(
+        /[^a-z0-9-]/g,
+        '-'
+      )
       .slice(0, 70);
 
   let channel;
 
   try {
-    channel = await guild.channels.create({
-      name: `edital-${safeName}`,
-      type: ChannelType.GuildText,
-      parent:
-        CONFIG.editalCategoryId || undefined,
-      permissionOverwrites: overwrites,
-      reason:
-        `Edital iniciado por ${member.user.tag}`
-    });
+    channel =
+      await guild.channels.create({
+        name:
+          `edital-${safeName}`,
+        type:
+          ChannelType.GuildText,
+        parent:
+          CONFIG.editalCategoryId ||
+          undefined,
+        permissionOverwrites:
+          overwrites,
+        reason:
+          `Edital iniciado por ${member.user.tag}`
+      });
+
   } catch (error) {
     console.error(
       'Erro ao criar canal do edital:',
@@ -485,48 +726,70 @@ async function createEditalChannel(interaction) {
     });
   }
 
-  sessions.set(member.id, {
-    channelId: channel.id,
-    candidateId: member.id,
-    started: false,
-    answers: [],
-    objectiveCorrect: 0,
-    currentQuestion: 0
-  });
+  sessions.set(
+    member.id,
+    {
+      channelId:
+        channel.id,
 
-  const embed = new EmbedBuilder()
-    .setColor(0x8b0000)
-    .setTitle('📋 EDITAL PAVUNA')
-    .setDescription(
-      [
-        `Olá, ${member}!`,
-        '',
-        'Seu canal privado de recrutamento foi criado.',
-        '',
-        '### ⚠️ Antes de começar',
-        '',
-        '• Leia todas as perguntas com atenção.',
-        '• O cronômetro começa ao clicar em **Iniciar Edital**.',
-        '• Cada pergunta possui um tempo próprio.',
-        '• Se o tempo acabar, o processo será encerrado.',
-        '• Questões **1–5 e 11** são discursivas.',
-        '• Questões **6–10** possuem alternativas.',
-        '• É necessário acertar as **5 questões objetivas**.',
-        '',
-        'Quando estiver pronto, clique em **▶️ Iniciar Edital**.',
-        '',
-        '🍀 **Boa sorte!**'
-      ].join('\n')
-    )
-    .setFooter({
-      text: 'Pavuna • Sistema de Recrutamento'
-    })
-    .setTimestamp();
+      candidateId:
+        member.id,
+
+      started:
+        false,
+
+      answers: [],
+
+      objectiveCorrect:
+        0,
+
+      currentQuestion:
+        0
+    }
+  );
+
+  const embed =
+    new EmbedBuilder()
+      .setColor(0x8b0000)
+      .setTitle(
+        '📋 EDITAL PAVUNA'
+      )
+      .setDescription(
+        [
+          `Olá, ${member}!`,
+          '',
+          'Seu canal privado de recrutamento foi criado.',
+          '',
+          '### ⚠️ Antes de começar',
+          '',
+          '• Leia todas as perguntas com atenção.',
+          '• O cronômetro começa ao clicar em **Iniciar Edital**.',
+          '• Cada pergunta possui um tempo próprio.',
+          '• Se o tempo acabar, o processo será encerrado.',
+          '• Questões **1–5 e 11** são discursivas.',
+          '• Questões **6–10** possuem alternativas.',
+          '• É necessário acertar as **5 questões objetivas**.',
+          '',
+          'Quando estiver pronto, clique em **▶️ Iniciar Edital**.',
+          '',
+          '🍀 **Boa sorte!**'
+        ].join('\n')
+      )
+      .setFooter({
+        text:
+          'Pavuna • Sistema de Recrutamento'
+      })
+      .setTimestamp();
 
   await channel.send({
-    content: `${member}`,
-    embeds: [embed],
-    components: [startRow()]
+    content:
+      `${member}`,
+    embeds: [
+      embed
+    ],
+    components: [
+      startRow()
+    ]
   });
 
   await interaction.reply({
@@ -551,13 +814,16 @@ async function rejectByTimeout(
     embeds: [
       new EmbedBuilder()
         .setColor(0xff0000)
-        .setTitle('⏰ TEMPO ESGOTADO')
+        .setTitle(
+          '⏰ TEMPO ESGOTADO'
+        )
         .setDescription(
           `O tempo da **pergunta ${questionNumber}/11** acabou.\n\n` +
           `❌ **Edital reprovado.**`
         )
         .setFooter({
-          text: 'Pavuna • Processo Seletivo'
+          text:
+            'Pavuna • Processo Seletivo'
         })
     ]
   }).catch(() => {});
@@ -572,7 +838,9 @@ async function rejectByTimeout(
     ].join('\n')
   );
 
-  sessions.delete(member.id);
+  sessions.delete(
+    member.id
+  );
 
   deleteAfter(
     channel,
@@ -585,21 +853,30 @@ async function rejectByTimeout(
    EXECUTAR EDITAL
 ====================================================== */
 
-async function runEdital(channel, member) {
+async function runEdital(
+  channel,
+  member
+) {
   const session =
-    sessions.get(member.id);
+    sessions.get(
+      member.id
+    );
 
   if (!session) return;
 
-  if (session.started) return;
+  if (session.started)
+    return;
 
-  session.started = true;
+  session.started =
+    true;
 
   await channel.send({
     embeds: [
       new EmbedBuilder()
         .setColor(0x00aa55)
-        .setTitle('🚀 EDITAL INICIADO')
+        .setTitle(
+          '🚀 EDITAL INICIADO'
+        )
         .setDescription(
           'O processo seletivo começou!\n\n' +
           'Responda cada pergunta dentro do tempo indicado.'
@@ -608,9 +885,12 @@ async function runEdital(channel, member) {
   });
 
   for (const q of QUESTIONS) {
-    if (!sessions.has(member.id)) return;
 
-    session.currentQuestion = q.n;
+    if (!sessions.has(member.id))
+      return;
+
+    session.currentQuestion =
+      q.n;
 
     const startedAt =
       new Date();
@@ -618,14 +898,18 @@ async function runEdital(channel, member) {
     const deadline =
       new Date(
         startedAt.getTime() +
-        q.minutes * 60 * 1000
+        q.minutes *
+        60 *
+        1000
       );
+
 
     /* ================================================
        OBJETIVAS
     ================================================ */
 
     if (q.options) {
+
       const questionMessage =
         await channel.send({
           embeds: [
@@ -643,18 +927,26 @@ async function runEdital(channel, member) {
       const collected =
         await questionMessage
           .awaitMessageComponent({
-            filter: buttonInteraction =>
-              buttonInteraction.user.id === member.id &&
-              buttonInteraction.customId.startsWith(
-                `edital_${q.n}_`
-              ),
+            filter:
+              buttonInteraction =>
+                buttonInteraction.user.id ===
+                member.id &&
+                buttonInteraction.customId.startsWith(
+                  `edital_${q.n}_`
+                ),
 
             time:
-              q.minutes * 60 * 1000
+              q.minutes *
+              60 *
+              1000
+
           })
-          .catch(() => null);
+          .catch(
+            () => null
+          );
 
       if (!collected) {
+
         await questionMessage
           .delete()
           .catch(() => {});
@@ -674,11 +966,15 @@ async function runEdital(channel, member) {
           .pop();
 
       session.answers.push({
-        question: q.n,
+        question:
+          q.n,
         answer
       });
 
-      if (answer === q.answer) {
+      if (
+        answer ===
+        q.answer
+      ) {
         session.objectiveCorrect++;
       }
 
@@ -713,19 +1009,29 @@ async function runEdital(channel, member) {
 
     const collected =
       await channel.awaitMessages({
-        filter: message =>
-          message.author.id === member.id &&
-          !message.author.bot,
+        filter:
+          message =>
+            message.author.id ===
+            member.id &&
+            !message.author.bot,
 
-        max: 1,
+        max:
+          1,
+
         time:
-          q.minutes * 60 * 1000
-      }).catch(() => null);
+          q.minutes *
+          60 *
+          1000
+
+      }).catch(
+        () => null
+      );
 
     if (
       !collected ||
       collected.size === 0
     ) {
+
       await questionMessage
         .delete()
         .catch(() => {});
@@ -743,10 +1049,13 @@ async function runEdital(channel, member) {
       collected.first();
 
     const answer =
-      answerMessage.content.trim();
+      answerMessage
+        .content
+        .trim();
 
     session.answers.push({
-      question: q.n,
+      question:
+        q.n,
       answer
     });
 
@@ -780,25 +1089,36 @@ async function finishEdital(
     session.objectiveCorrect === 5;
 
   if (approved) {
+
     const roleResults = [];
 
-    for (const roleId of CONFIG.approvedRoles) {
-      const role =
-        channel.guild.roles.cache.get(roleId);
+    for (
+      const roleId of
+      CONFIG.approvedRoles
+    ) {
 
-      if (!role) continue;
+      const role =
+        channel.guild.roles.cache.get(
+          roleId
+        );
+
+      if (!role)
+        continue;
 
       if (
         role.position >=
         channel.guild.members.me.roles.highest.position
       ) {
+
         console.warn(
           `Cargo ${role.name} está acima do bot.`
         );
+
         continue;
       }
 
       try {
+
         await member.roles.add(
           role,
           'Aprovado no edital Pavuna'
@@ -807,7 +1127,9 @@ async function finishEdital(
         roleResults.push(
           role.name
         );
+
       } catch (error) {
+
         console.error(
           `Erro ao adicionar cargo ${roleId}:`,
           error
@@ -819,7 +1141,9 @@ async function finishEdital(
       embeds: [
         new EmbedBuilder()
           .setColor(0x00cc66)
-          .setTitle('🎉 EDITAL APROVADO!')
+          .setTitle(
+            '🎉 EDITAL APROVADO!'
+          )
           .setDescription(
             [
               `Parabéns, ${member}!`,
@@ -831,7 +1155,10 @@ async function finishEdital(
               '🏅 **Cargos atribuídos:**',
               roleResults.length
                 ? roleResults
-                    .map(role => `> • **${role}**`)
+                    .map(
+                      role =>
+                        `> • **${role}**`
+                    )
                     .join('\n')
                 : '> ⚠️ Nenhum cargo pôde ser atribuído.',
               '',
@@ -842,7 +1169,8 @@ async function finishEdital(
             ].join('\n')
           )
           .setFooter({
-            text: 'Pavuna • Recrutamento'
+            text:
+              'Pavuna • Recrutamento'
           })
           .setTimestamp()
       ]
@@ -860,11 +1188,14 @@ async function finishEdital(
     );
 
   } else {
+
     await channel.send({
       embeds: [
         new EmbedBuilder()
           .setColor(0xff3333)
-          .setTitle('📕 EDITAL REPROVADO')
+          .setTitle(
+            '📕 EDITAL REPROVADO'
+          )
           .setDescription(
             [
               `Infelizmente, ${member}, você não atingiu a pontuação necessária.`,
@@ -879,7 +1210,8 @@ async function finishEdital(
             ].join('\n')
           )
           .setFooter({
-            text: 'Pavuna • Recrutamento'
+            text:
+              'Pavuna • Recrutamento'
           })
           .setTimestamp()
       ]
@@ -896,7 +1228,9 @@ async function finishEdital(
     );
   }
 
-  sessions.delete(member.id);
+  sessions.delete(
+    member.id
+  );
 
   deleteAfter(
     channel,
@@ -917,6 +1251,7 @@ function commandBuilders() {
       .setDescription(
         'Gerencia o painel da Pavuna'
       )
+
       .addSubcommand(sub =>
         sub
           .setName('edital')
@@ -924,13 +1259,24 @@ function commandBuilders() {
             'Envia o painel de recrutamento'
           )
       )
+
+      .addSubcommand(sub =>
+        sub
+          .setName('registrar')
+          .setDescription(
+            'Envia o painel de registro'
+          )
+      )
+
       .toJSON(),
+
 
     new SlashCommandBuilder()
       .setName('exoneracao')
       .setDescription(
         'Exonera um membro'
       )
+
       .addStringOption(option =>
         option
           .setName('motivo')
@@ -939,6 +1285,7 @@ function commandBuilders() {
           )
           .setRequired(true)
       )
+
       .addUserOption(option =>
         option
           .setName('membro')
@@ -947,13 +1294,16 @@ function commandBuilders() {
           )
           .setRequired(true)
       )
+
       .toJSON(),
+
 
     new SlashCommandBuilder()
       .setName('promocao')
       .setDescription(
         'Promove um membro'
       )
+
       .addUserOption(option =>
         option
           .setName('membro')
@@ -962,6 +1312,7 @@ function commandBuilders() {
           )
           .setRequired(true)
       )
+
       .addRoleOption(option =>
         option
           .setName('cargo_antigo')
@@ -970,6 +1321,7 @@ function commandBuilders() {
           )
           .setRequired(true)
       )
+
       .addRoleOption(option =>
         option
           .setName('novo_cargo')
@@ -978,13 +1330,16 @@ function commandBuilders() {
           )
           .setRequired(true)
       )
+
       .toJSON(),
+
 
     new SlashCommandBuilder()
       .setName('blacklist')
       .setDescription(
         'Adiciona ou remove um usuário da blacklist'
       )
+
       .addUserOption(option =>
         option
           .setName('membro')
@@ -993,6 +1348,7 @@ function commandBuilders() {
           )
           .setRequired(true)
       )
+
       .toJSON()
   ];
 }
@@ -1006,12 +1362,14 @@ async function requireRole(
   interaction,
   allowedRoles
 ) {
+
   if (
     !hasAnyRole(
       interaction.member,
       allowedRoles
     )
   ) {
+
     await interaction.reply({
       content:
         '❌ Você não possui o cargo necessário para utilizar este comando.',
@@ -1029,59 +1387,71 @@ async function requireRole(
    READY
 ====================================================== */
 
-client.once('ready', async () => {
-  console.log(
-    `✅ Pavuna conectado como ${client.user.tag}`
-  );
+client.once(
+  'ready',
+  async () => {
 
-  const rest =
-    new REST({
-      version: '10'
-    }).setToken(
-      process.env.DISCORD_TOKEN
+    console.log(
+      `✅ Pavuna conectado como ${client.user.tag}`
     );
 
-  const commands =
-    commandBuilders();
-
-  try {
-    if (process.env.GUILD_ID) {
-      await rest.put(
-        Routes.applicationGuildCommands(
-          client.user.id,
-          process.env.GUILD_ID
-        ),
-        {
-          body: commands
-        }
+    const rest =
+      new REST({
+        version: '10'
+      }).setToken(
+        process.env.DISCORD_TOKEN
       );
 
-      console.log(
-        '✅ Comandos registrados no servidor.'
-      );
+    const commands =
+      commandBuilders();
 
-    } else {
-      await rest.put(
-        Routes.applicationCommands(
-          client.user.id
-        ),
-        {
-          body: commands
-        }
-      );
+    try {
 
-      console.log(
-        '✅ Comandos globais registrados.'
+      if (
+        process.env.GUILD_ID
+      ) {
+
+        await rest.put(
+          Routes.applicationGuildCommands(
+            client.user.id,
+            process.env.GUILD_ID
+          ),
+          {
+            body:
+              commands
+          }
+        );
+
+        console.log(
+          '✅ Comandos registrados no servidor.'
+        );
+
+      } else {
+
+        await rest.put(
+          Routes.applicationCommands(
+            client.user.id
+          ),
+          {
+            body:
+              commands
+          }
+        );
+
+        console.log(
+          '✅ Comandos globais registrados.'
+        );
+      }
+
+    } catch (error) {
+
+      console.error(
+        '❌ Erro ao registrar comandos:',
+        error
       );
     }
-
-  } catch (error) {
-    console.error(
-      '❌ Erro ao registrar comandos:',
-      error
-    );
   }
-});
+);
 
 
 /* ======================================================
@@ -1107,7 +1477,8 @@ client.on(
         ----------------------------------------------- */
 
         if (
-          interaction.commandName === 'painel'
+          interaction.commandName ===
+          'painel'
         ) {
 
           if (
@@ -1116,6 +1487,41 @@ client.on(
               CONFIG.panelRoles
             )
           ) return;
+
+          const tipo =
+            interaction.options
+              .getSubcommand();
+
+
+          /* ============================================
+             PAINEL REGISTRO
+          ============================================ */
+
+          if (
+            tipo ===
+            'registrar'
+          ) {
+
+            await interaction.channel.send({
+              embeds: [
+                registrarEmbed()
+              ],
+              components: [
+                registrarRow()
+              ]
+            });
+
+            return interaction.reply({
+              content:
+                '✅ Painel de registro enviado com sucesso.',
+              ephemeral: true
+            });
+          }
+
+
+          /* ============================================
+             PAINEL EDITAL
+          ============================================ */
 
           await interaction.channel.send({
             embeds: [
@@ -1161,6 +1567,7 @@ client.on(
             );
 
           if (!target) {
+
             return interaction.reply({
               content:
                 '❌ Não encontrei esse membro no servidor.',
@@ -1172,6 +1579,7 @@ client.on(
             target.id ===
             interaction.user.id
           ) {
+
             return interaction.reply({
               content:
                 '❌ Você não pode se exonerar.',
@@ -1183,6 +1591,7 @@ client.on(
             interaction.guild.members.me;
 
           if (!botMember) {
+
             return interaction.reply({
               content:
                 '❌ Não consegui verificar a hierarquia do bot.',
@@ -1207,8 +1616,9 @@ client.on(
                 .includes(role.id)
             ) continue;
 
-            if (role.managed)
-              continue;
+            if (
+              role.managed
+            ) continue;
 
             if (
               role.position >=
@@ -1216,6 +1626,7 @@ client.on(
             ) continue;
 
             try {
+
               await target.roles.remove(
                 role,
                 `Exoneração por ${interaction.user.tag}: ${motivo}`
@@ -1224,6 +1635,7 @@ client.on(
               removed.push(
                 role.name
               );
+
             } catch {}
           }
 
@@ -1244,7 +1656,8 @@ client.on(
                   ].join('\n')
                 )
                 .setFooter({
-                  text: 'Pavuna • Administração'
+                  text:
+                    'Pavuna • Administração'
                 })
                 .setTimestamp()
             ]
@@ -1298,6 +1711,7 @@ client.on(
             );
 
           if (!target) {
+
             return interaction.reply({
               content:
                 '❌ Não encontrei esse membro.',
@@ -1309,6 +1723,7 @@ client.on(
             !oldRole ||
             !newRole
           ) {
+
             return interaction.reply({
               content:
                 '❌ Um dos cargos informados é inválido.',
@@ -1320,6 +1735,7 @@ client.on(
             oldRole.id ===
             newRole.id
           ) {
+
             return interaction.reply({
               content:
                 '❌ O cargo antigo e o novo cargo não podem ser iguais.',
@@ -1335,6 +1751,7 @@ client.on(
             newRole.position >=
             botMember.roles.highest.position
           ) {
+
             return interaction.reply({
               content:
                 '❌ O novo cargo está acima ou no mesmo nível do maior cargo do bot.',
@@ -1347,6 +1764,7 @@ client.on(
               oldRole.id
             )
           ) {
+
             return interaction.reply({
               content:
                 `❌ O membro não possui o cargo ${oldRole}.`,
@@ -1355,6 +1773,7 @@ client.on(
           }
 
           try {
+
             await target.roles.remove(
               oldRole,
               `Promoção por ${interaction.user.tag}`
@@ -1366,6 +1785,7 @@ client.on(
             );
 
           } catch (error) {
+
             console.error(error);
 
             return interaction.reply({
@@ -1446,6 +1866,7 @@ client.on(
           if (existingBan) {
 
             try {
+
               await interaction.guild.members.unban(
                 user.id,
                 `Blacklist removida por ${interaction.user.tag}`
@@ -1471,6 +1892,7 @@ client.on(
               );
 
             } catch (error) {
+
               await interaction.reply({
                 content:
                   '❌ Não foi possível remover a blacklist.',
@@ -1481,10 +1903,13 @@ client.on(
           } else {
 
             try {
+
               await interaction.guild.members.ban(
                 user.id,
                 {
-                  deleteMessageSeconds: 0,
+                  deleteMessageSeconds:
+                    0,
+
                   reason:
                     `Blacklist por ${interaction.user.tag}`
                 }
@@ -1510,6 +1935,7 @@ client.on(
               );
 
             } catch (error) {
+
               await interaction.reply({
                 content:
                   '❌ Não foi possível banir o usuário. Verifique a permissão de banir membros e a hierarquia do bot.',
@@ -1526,12 +1952,43 @@ client.on(
 
 
       /* ================================================
+         MODAL DE REGISTRO
+      ================================================ */
+
+      if (
+        interaction.isModalSubmit() &&
+        interaction.customId ===
+        'modal_registro'
+      ) {
+
+        return realizarRegistro(
+          interaction
+        );
+      }
+
+
+      /* ================================================
          BOTÕES
       ================================================ */
 
       if (
         interaction.isButton()
       ) {
+
+        /* -----------------------------------------------
+           BOTÃO REGISTRAR
+        ----------------------------------------------- */
+
+        if (
+          interaction.customId ===
+          'abrir_registro'
+        ) {
+
+          return abrirModalRegistro(
+            interaction
+          );
+        }
+
 
         /* -----------------------------------------------
            FAZER EDITAL
@@ -1541,6 +1998,7 @@ client.on(
           interaction.customId ===
           'fazer_edital'
         ) {
+
           return createEditalChannel(
             interaction
           );
@@ -1552,8 +2010,9 @@ client.on(
             interaction.user.id
           );
 
+
         /* -----------------------------------------------
-           BOTÕES DO EDITAL
+           BOTÃO FECHAR EDITAL
         ----------------------------------------------- */
 
         if (
@@ -1576,6 +2035,7 @@ client.on(
             !isCandidate &&
             !canManage
           ) {
+
             return interaction.reply({
               content:
                 '❌ Você não possui permissão para fechar este edital.',
@@ -1584,6 +2044,7 @@ client.on(
           }
 
           if (session) {
+
             sessions.delete(
               interaction.user.id
             );
@@ -1601,12 +2062,17 @@ client.on(
         }
 
 
+        /* -----------------------------------------------
+           INICIAR EDITAL
+        ----------------------------------------------- */
+
         if (
           interaction.customId ===
           'iniciar_edital'
         ) {
 
           if (!session) {
+
             return interaction.reply({
               content:
                 '❌ Este edital não está mais ativo.',
@@ -1618,6 +2084,7 @@ client.on(
             session.channelId !==
             interaction.channelId
           ) {
+
             return interaction.reply({
               content:
                 '❌ Este não é o seu canal de edital.',
@@ -1625,7 +2092,10 @@ client.on(
             });
           }
 
-          if (session.started) {
+          if (
+            session.started
+          ) {
+
             return interaction.reply({
               content:
                 '⚠️ O edital já foi iniciado.',
@@ -1652,10 +2122,6 @@ client.on(
           )
         ) {
 
-          /*
-           * A resposta é capturada pelo
-           * awaitMessageComponent() da pergunta.
-           */
           return;
         }
       }
@@ -1672,11 +2138,14 @@ client.on(
         !interaction.replied &&
         !interaction.deferred
       ) {
+
         await interaction.reply({
           content:
             '❌ Ocorreu um erro interno. Verifique os logs do bot.',
           ephemeral: true
-        }).catch(() => {});
+        }).catch(
+          () => {}
+        );
       }
     }
   }
@@ -1697,6 +2166,7 @@ process.on(
   }
 );
 
+
 process.on(
   'uncaughtException',
   error => {
@@ -1712,13 +2182,17 @@ process.on(
    LOGIN
 ====================================================== */
 
-if (!process.env.DISCORD_TOKEN) {
+if (
+  !process.env.DISCORD_TOKEN
+) {
+
   console.error(
     '❌ DISCORD_TOKEN não foi configurado no Railway.'
   );
 
   process.exit(1);
 }
+
 
 client.login(
   process.env.DISCORD_TOKEN
