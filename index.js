@@ -4397,16 +4397,6 @@ function commandBuilders() {
    PAINEL
 ===================================================== */
 
-new SlashCommandBuilder()
-
-  .setName(
-    'painel'
-  )
-
-  .setDescription(
-    '🏴 Gerencia os painéis da Pavuna'
-  )
-
   .addSubcommand(sub =>
     sub
       .setName('ticket')
