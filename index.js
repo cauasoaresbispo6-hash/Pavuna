@@ -1,2632 +1,4614 @@
-from pathlib import Path
-
-code = r'''/*
-============================================================
- PAVUNA BOT — CENTRAL OPERACIONAL
- Versão Premium / Discord.js 14
-============================================================
-
- RECURSOS:
- - Central de painéis
- - Recrutamento com 11 etapas, tempo e gabarito
- - Registro Nick + ID
- - Bate-ponto com meta semanal e ranking
- - Tickets por categoria
- - Reivindicação de ticket
- - Adição/remoção de participantes
- - Promoção / Rebaixamento / Exoneração / Blacklist
- - Logs
- - Permissões
- - Persistência local
- - Tratamento de erros
- - Interface padronizada
-
- VARIÁVEIS RAILWAY:
- TOKEN=seu_token
- GUILD_ID=id_do_servidor
-
- IMPORTANTE:
- Nunca coloque o TOKEN diretamente neste arquivo.
-============================================================
-*/
-
 const {
   Client,
   GatewayIntentBits,
   Partials,
-  EmbedBuilder,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  ChannelType,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
+  EmbedBuilder,
+  PermissionFlagsBits,
   ModalBuilder,
   TextInputBuilder,
-  TextInputStyle,
-  PermissionsBitField,
-  ChannelType,
-  SlashCommandBuilder,
-  AttachmentBuilder
+  TextInputStyle
 } = require('discord.js');
 
 const fs = require('fs');
 const path = require('path');
 
-/* =========================================================
-   01 — AMBIENTE
-========================================================= */
-
-const TOKEN = process.env.TOKEN;
-const GUILD_ID = process.env.GUILD_ID || null;
-
-if (!TOKEN) {
-  console.error('❌ A variável TOKEN não foi encontrada.');
-  console.error('➡️ Railway > Variables > TOKEN');
-  process.exit(1);
-}
+require('dotenv').config();
 
 /* =========================================================
-   02 — CONFIGURAÇÃO PRINCIPAL
+   CONFIGURAÇÃO
 ========================================================= */
 
 const CONFIG = {
-  brand: {
-    name: 'PAVUNA',
-    subtitle: 'CENTRAL OPERACIONAL',
-    color: 0x15171c,
-    success: 0x2ecc71,
-    warning: 0xf1c40f,
-    danger: 0xe74c3c,
-    info: 0x3498db,
-    neutral: 0x5865f2
-  },
 
-  roles: {
-    admins: [
-      '1550615266046644259',
-      '1550615266046644258',
-      '1550615266046644257'
-    ],
+  /* =======================================================
+     IMAGENS
+  ======================================================= */
 
-    editalAccess: [
-      '1550615266030002192',
-      '1550615266030002193'
-    ],
+  editalImage:
+    'https://media.discordapp.net/attachments/1550653825659183144/1550714361973051474/Captura_de_tela_2026-09-19_004348.png?ex=6aaf56ca&is=6aae054a&hm=fd4f3deb9bbe0a581417d2504740aecfd43e72995527cc5bfb8804ec21f06eec&=&format=webp&quality=lossless',
 
-    approved: [
-      '1550615266004574308',
-      '1550615265954373758',
-      '1550678827603329044',
-      '1550893217027989654'
-    ],
+  registrarImage:
+    'https://media.discordapp.net/attachments/1494717315743350836/1550919367339024384/648a4579-c535-4be5-b1ce-796cc37e6378.png?ex=6ab015b7&is=6aaec437&hm=9f3aaca3870b2a7156ada9d41fabb1613431204ea54008448c2199eb68baa925&=&format=webp&quality=lossless&width=768&height=317',
 
-    ticketStaff: [
-      '1550615266030002188',
-      '1550615266046644257',
-      '1550615266046644259'
-    ],
+  /* =======================================================
+     CARGOS ADMINISTRATIVOS
+     
+     SOMENTE ESTES 3 PODEM USAR OS SISTEMAS ADMINISTRATIVOS
+  ======================================================= */
 
-    preserveOnExoneration: [
-      '1550615265954373757',
-      '1550615265954373756'
-    ]
-  },
+  adminRoles: [
+    '1550615266046644259',
+    '1550615266046644258',
+    '1550615266046644257'
+  ],
 
-  voiceChannels: [
+  /* =======================================================
+     CARGOS QUE PODEM VER/ACOMPANHAR O EDITAL
+  ======================================================= */
+
+  editalAccessRoles: [
+    '1550615266030002192',
+    '1550615266030002193'
+  ],
+
+  /* =======================================================
+     CARGOS RECEBIDOS APÓS APROVAÇÃO
+  ======================================================= */
+
+  approvedRoles: [
+    '1550615266004574308',
+    '1550615265954373758',
+    '1550678827603329044',
+    '1550893217027989654'
+  ],
+
+  /* =======================================================
+     CARGOS QUE NÃO SERÃO REMOVIDOS NA EXONERAÇÃO
+  ======================================================= */
+
+  exoneracaoKeepRoles: [
+    '1550615265954373757',
+    '1550615265954373756'
+  ],
+
+  /* =======================================================
+     CALLS PERMITIDAS PARA BATE-PONTO
+  ======================================================= */
+
+  pontoVoiceChannels: [
     '1550686696671281252',
     '1550687590657564672',
     '1550615268969938970',
+    '1550615268969938971',
+    '1550615268969938972',
     '1550615269376790579',
     '1550615269376790580',
     '1550615269376790581',
     '1550615268969938973',
-    '1550615269376790578',
-    '1550615268969938971',
-    '1550615268969938972'
+    '1550615269376790578'
   ],
 
-  images: {
-    edital:
-      'https://media.discordapp.net/attachments/1550653825659183144/1550714361973051474/Captura_de_tela_2026-09-19_004348.png?ex=6aaf56ca&is=6aae054&hm=fd4f3deb9bbe0a581417d2504740aecfd43e72995527cc5bfb8804ec21f06eec&=&format=webp&quality=lossless',
+  /* =======================================================
+     META SEMANAL
+  ======================================================= */
 
-    registro:
-      'https://media.discordapp.net/attachments/1494717315743350836/1550919367339024384/648a4579-c535-4be5-b1ce-796cc37e6378.png?ex=6ab015b7&is=6aaec437&hm=9f3aaca3870b2a7156ada9d41fabb1613431204ea54008448c2199eb68baa925&=&format=webp&quality=lossless&width=768&height=317',
+  pontoMetaSemanalMs:
+    7 * 60 * 60 * 1000,
 
-    ticket:
-      'https://media.discordapp.net/attachments/1551129943394492526/1551271126146093157/image.png?ex=6ab15d51&is=6ab00bd1&hm=dfb73fb6da0e56285dd3794dbefb774983871379aee0d5439575bff275610549&=&format=webp&quality=lossless'
-  },
+  /* =======================================================
+     OUTROS
+  ======================================================= */
 
-  ticket: {
-    categoryId: process.env.TICKET_CATEGORY_ID || null,
-    logChannelId: process.env.TICKET_LOG_CHANNEL_ID || null
-  },
+  editalCategoryId:
+    process.env.EDITAL_CATEGORY_ID || null,
 
-  logs: {
-    channelId: process.env.LOG_CHANNEL_ID || null
-  },
+  logChannelId:
+    process.env.LOG_CHANNEL_ID || null,
 
-  point: {
-    weeklyGoal: 7 * 60 * 60 * 1000
-  },
-
-  recruitment: {
-    minimumLinesQuestion: 4
-  }
+  closeAfterMs: 5000
 };
 
-/* =========================================================
-   03 — CLIENT
-========================================================= */
-
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildVoiceStates
-  ],
-  partials: [
-    Partials.Channel,
-    Partials.GuildMember,
-    Partials.User
-  ]
-});
 
 /* =========================================================
-   04 — ARMAZENAMENTO
+   ARQUIVO DO BATE-PONTO
 ========================================================= */
 
-const DATA_DIR = path.join(__dirname, 'data');
-const POINTS_FILE = path.join(DATA_DIR, 'pontos.json');
-const TICKETS_FILE = path.join(DATA_DIR, 'tickets.json');
-const HISTORY_FILE = path.join(DATA_DIR, 'historico.json');
+const pontoFile =
+  path.join(__dirname, 'pontos.json');
 
-function ensureDataDirectory() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+let pontos = {};
 
-  const defaults = [
-    [POINTS_FILE, {}],
-    [TICKETS_FILE, {}],
-    [HISTORY_FILE, []]
-  ];
-
-  for (const [file, fallback] of defaults) {
-    if (!fs.existsSync(file)) {
-      fs.writeFileSync(file, JSON.stringify(fallback, null, 2));
+function carregarPontos() {
+  try {
+    if (!fs.existsSync(pontoFile)) {
+      pontos = {};
+      return;
     }
-  }
-}
 
-ensureDataDirectory();
+    const conteudo =
+      fs.readFileSync(
+        pontoFile,
+        'utf8'
+      );
 
-function readJson(file, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return fallback;
-  }
-}
+    pontos =
+      conteudo.trim()
+        ? JSON.parse(conteudo)
+        : {};
 
-function writeJson(file, data) {
-  try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    return true;
   } catch (error) {
-    console.error(`❌ Erro ao salvar ${file}:`, error);
-    return false;
+
+    console.error(
+      '❌ Erro ao carregar pontos.json:',
+      error
+    );
+
+    pontos = {};
   }
 }
 
-let pontos = readJson(POINTS_FILE, {});
-let tickets = readJson(TICKETS_FILE, {});
-let historico = readJson(HISTORY_FILE, []);
+carregarPontos();
 
-const pontosAtivos = new Map();
-const recrutamentosAtivos = new Map();
+
+function salvarPontos() {
+  try {
+
+    const tempFile =
+      `${pontoFile}.tmp`;
+
+    fs.writeFileSync(
+      tempFile,
+      JSON.stringify(
+        pontos,
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    fs.renameSync(
+      tempFile,
+      pontoFile
+    );
+
+  } catch (error) {
+
+    console.error(
+      '❌ Erro ao salvar pontos.json:',
+      error
+    );
+  }
+}
+
 
 /* =========================================================
-   05 — QUESTÕES DO EDITAL
+   PONTOS ATIVOS
 ========================================================= */
 
-const RECRUITMENT_QUESTIONS = [
+const pontosAtivos =
+  new Map();
+
+
+/* =========================================================
+   SESSÕES DE EDITAL
+========================================================= */
+
+const sessions =
+  new Map();
+
+
+/* =========================================================
+   PERGUNTAS DO EDITAL
+========================================================= */
+
+const QUESTIONS = [
+
   {
-    id: 1,
-    title: 'Nome completo',
-    time: 3 * 60 * 1000,
-    type: 'text'
+    n: 1,
+    text:
+      'Qual é o seu nome completo?',
+    minutes: 3
   },
 
   {
-    id: 2,
-    title: 'Nick',
-    time: 3 * 60 * 1000,
-    type: 'text'
+    n: 2,
+    text:
+      'Qual é o seu nick?',
+    minutes: 3
   },
 
   {
-    id: 3,
-    title: 'ID',
-    time: 3 * 60 * 1000,
-    type: 'text',
-    numeric: true
+    n: 3,
+    text:
+      'Qual é o seu ID?',
+    minutes: 3
   },
 
   {
-    id: 4,
-    title: 'Por que quer entrar para nossa Facção? Mínimo 2 linhas.',
-    time: 5 * 60 * 1000,
-    type: 'text'
+    n: 4,
+    text:
+      'Por que você quer entrar para nossa facção? Mínimo de 2 linhas.',
+    minutes: 5
   },
 
   {
-    id: 5,
-    title: 'Já participou de alguma fac/corp? Se sim, qual e quanto tempo ficou nela.',
-    time: 5 * 60 * 1000,
-    type: 'text'
+    n: 5,
+    text:
+      'Já participou de alguma fac/corp? Se sim, qual e quanto tempo ficou nela?',
+    minutes: 5
   },
 
   {
-    id: 6,
-    title: 'O que é RDM?',
-    time: 5 * 60 * 1000,
-    type: 'choice',
-    choices: [
-      ['A', 'Matar sem motivo'],
-      ['B', 'Atropelar sem motivo'],
-      ['C', 'Usar informação de fora do jogo para o jogo'],
-      ['D', 'Fazer coisas impossíveis humanamente']
+    n: 6,
+    text:
+      'O que é RDM?',
+    minutes: 5,
+    options: [
+      'Matar alguém sem motivo',
+      'Atropelar alguém sem motivo',
+      'Usar informação de fora do jogo para o jogo',
+      'Fazer coisas impossíveis de fazer humanamente'
     ],
     answer: 'A'
   },
 
   {
-    id: 7,
-    title: 'O que é VDM?',
-    time: 5 * 60 * 1000,
-    type: 'choice',
-    choices: [
-      ['A', 'Matar sem motivo'],
-      ['B', 'Usar informação de fora para jogo'],
-      ['C', 'Atropelar alguém até a morte'],
-      ['D', 'Fazer coisas impossíveis humanamente']
+    n: 7,
+    text:
+      'O que é VDM?',
+    minutes: 5,
+    options: [
+      'Matar alguém sem motivo',
+      'Usar informações de fora do jogo para o jogo',
+      'Atropelar alguém até a morte',
+      'Fazer coisas impossíveis de fazer humanamente'
     ],
     answer: 'C'
   },
 
   {
-    id: 8,
-    title: 'O que é CL?',
-    time: 5 * 60 * 1000,
-    type: 'choice',
-    choices: [
-      ['A', 'Quitar em ação'],
-      ['B', 'Usar informação de fora'],
-      ['C', 'Atropelar até morte'],
-      ['D', 'Fazer coisas impossíveis humanamente']
+    n: 8,
+    text:
+      'O que é CL?',
+    minutes: 5,
+    options: [
+      'Quitar em ação',
+      'Usar informações de fora do jogo para o jogo',
+      'Atropelar alguém até a morte',
+      'Fazer coisas impossíveis de fazer humanamente'
     ],
     answer: 'A'
   },
 
   {
-    id: 9,
-    title: 'O que é MG?',
-    time: 5 * 60 * 1000,
-    type: 'choice',
-    choices: [
-      ['A', 'Matar sem motivo'],
-      ['B', 'Fazer coisas impossíveis'],
-      ['C', 'Atropelar até morte'],
-      ['D', 'Usar informação de fora para jogo']
+    n: 9,
+    text:
+      'O que é MG?',
+    minutes: 5,
+    options: [
+      'Matar alguém sem motivo',
+      'Fazer coisas impossíveis de fazer humanamente',
+      'Atropelar alguém até a morte',
+      'Usar informação de fora do jogo para o jogo'
     ],
     answer: 'D'
   },
 
   {
-    id: 10,
-    title: 'O que é PG?',
-    time: 5 * 60 * 1000,
-    type: 'choice',
-    choices: [
-      ['A', 'Matar sem motivo'],
-      ['B', 'Fazer coisas impossíveis'],
-      ['C', 'Usar informação de fora para jogo'],
-      ['D', 'Atropelar até morte']
+    n: 10,
+    text:
+      'O que é PG?',
+    minutes: 5,
+    options: [
+      'Matar alguém sem motivo',
+      'Fazer coisas impossíveis de fazer humanamente',
+      'Usar informação de fora do jogo para o jogo',
+      'Atropelar alguém até a morte'
     ],
     answer: 'B'
   },
 
   {
-    id: 11,
-    title: 'O que pode agregar para nossa facção?',
-    time: 5 * 60 * 1000,
-    type: 'text'
+    n: 11,
+    text:
+      'O que você pode agregar para a nossa facção?',
+    minutes: 5
   }
+
 ];
 
+
 /* =========================================================
-   06 — FORMATADORES
+   CLIENT
 ========================================================= */
 
-function formatDuration(ms) {
-  if (!Number.isFinite(ms) || ms < 0) ms = 0;
+const client =
+  new Client({
 
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+    intents: [
 
-  return [
-    `${String(hours).padStart(2, '0')}h`,
-    `${String(minutes).padStart(2, '0')}m`,
-    `${String(seconds).padStart(2, '0')}s`
-  ].join(' ');
-}
+      GatewayIntentBits.Guilds,
 
-function formatShortDuration(ms) {
-  if (!Number.isFinite(ms) || ms < 0) ms = 0;
+      GatewayIntentBits.GuildMembers,
 
-  const totalMinutes = Math.floor(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+      GatewayIntentBits.GuildMessages,
 
-  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
-}
+      GatewayIntentBits.MessageContent,
 
-function discordTimestamp(date = new Date()) {
-  return `<t:${Math.floor(date.getTime() / 1000)}:F>`;
-}
+      GatewayIntentBits.GuildVoiceStates
 
-function discordRelative(date = new Date()) {
-  return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
-}
+    ],
 
-function cleanChannelName(text) {
-  return String(text)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 80) || 'atendimento';
-}
+    partials: [
+      Partials.Channel
+    ]
 
-function truncate(text, max = 1000) {
-  const value = String(text ?? '');
+  });
 
-  if (value.length <= max) {
-    return value;
+
+/* =========================================================
+   UTILITÁRIOS
+========================================================= */
+
+function hasAnyRole(
+  member,
+  roleIds
+) {
+
+  if (!member?.roles?.cache) {
+    return false;
   }
 
-  return `${value.slice(0, max - 3)}...`;
+  return roleIds.some(
+    roleId =>
+      member.roles.cache.has(
+        roleId
+      )
+  );
 }
 
-function isNumeric(value) {
-  return /^\d+$/.test(String(value).trim());
-}
-
-function normalizeAnswer(value) {
-  return String(value || '').trim().toUpperCase();
-}
 
 /* =========================================================
-   07 — DATAS / SEMANA
+   VERIFICAÇÃO ADMINISTRATIVA
 ========================================================= */
 
-function currentWeekKey() {
-  const now = new Date();
-  const day = now.getDay();
+async function requireAdmin(
+  interaction
+) {
 
-  const diff = day === 0 ? -6 : 1 - day;
+  if (
+    !interaction.guild ||
+    !interaction.member
+  ) {
 
-  now.setDate(now.getDate() + diff);
-  now.setHours(0, 0, 0, 0);
+    return false;
+  }
 
-  return now.toISOString().slice(0, 10);
+  if (
+    hasAnyRole(
+      interaction.member,
+      CONFIG.adminRoles
+    )
+  ) {
+
+    return true;
+  }
+
+  await interaction.reply({
+    content:
+      '❌ Você não possui um dos cargos administrativos autorizados.',
+    ephemeral: true
+  });
+
+  return false;
 }
 
-function ensurePointUser(userId) {
-  const week = currentWeekKey();
 
-  if (!pontos[userId]) {
+/* =========================================================
+   FORMATAÇÃO
+========================================================= */
+
+function formatTime(
+  date
+) {
+
+  return `<t:${Math.floor(
+    date.getTime() / 1000
+  )}:T>`;
+}
+
+
+function formatDuration(
+  minutes
+) {
+
+  return minutes === 1
+    ? '1 minuto'
+    : `${minutes} minutos`;
+}
+
+
+function formatDurationMs(
+  ms
+) {
+
+  if (
+    !ms ||
+    ms < 0
+  ) {
+
+    ms = 0;
+  }
+
+  const totalSeconds =
+    Math.floor(
+      ms / 1000
+    );
+
+  const hours =
+    Math.floor(
+      totalSeconds / 3600
+    );
+
+  const minutes =
+    Math.floor(
+      (totalSeconds % 3600) / 60
+    );
+
+  const seconds =
+    totalSeconds % 60;
+
+  return (
+    `${String(hours).padStart(2, '0')}h ` +
+    `${String(minutes).padStart(2, '0')}m ` +
+    `${String(seconds).padStart(2, '0')}s`
+  );
+}
+
+
+/* =========================================================
+   SEMANA ATUAL
+========================================================= */
+
+function getSemanaAtual() {
+
+  const agora =
+    new Date();
+
+  const data =
+    new Date(
+      agora.getFullYear(),
+      agora.getMonth(),
+      agora.getDate()
+    );
+
+  const dia =
+    data.getDay();
+
+  const diferenca =
+    dia === 0
+      ? 6
+      : dia - 1;
+
+  data.setDate(
+    data.getDate() -
+    diferenca
+  );
+
+  data.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
+  return data
+    .toISOString()
+    .slice(0, 10);
+}
+
+
+/* =========================================================
+   DADOS DO MEMBRO NO PONTO
+========================================================= */
+
+function garantirMembroPonto(
+  userId
+) {
+
+  const semana =
+    getSemanaAtual();
+
+  if (
+    !pontos[userId]
+  ) {
+
     pontos[userId] = {
-      week,
-      weekly: 0,
-      total: 0,
-      sessions: 0,
-      lastStart: null,
-      lastEnd: null
+
+      semana,
+
+      semanal: 0,
+
+      total: 0
+
     };
   }
 
-  if (pontos[userId].week !== week) {
-    pontos[userId].week = week;
-    pontos[userId].weekly = 0;
-    pontos[userId].sessions = 0;
+  if (
+    pontos[userId].semana !==
+    semana
+  ) {
+
+    pontos[userId].semana =
+      semana;
+
+    pontos[userId].semanal =
+      0;
+
+    salvarPontos();
   }
 
   return pontos[userId];
 }
 
-/* =========================================================
-   08 — EMBEDS PREMIUM
-========================================================= */
-
-function baseEmbed(title, description, color = CONFIG.brand.color) {
-  return new EmbedBuilder()
-    .setColor(color)
-    .setTitle(title)
-    .setDescription(description)
-    .setFooter({
-      text: `${CONFIG.brand.name} • ${CONFIG.brand.subtitle}`
-    })
-    .setTimestamp();
-}
-
-function successEmbed(title, description) {
-  return baseEmbed(
-    `✓ ${title}`,
-    description,
-    CONFIG.brand.success
-  );
-}
-
-function errorEmbed(title, description) {
-  return baseEmbed(
-    `× ${title}`,
-    description,
-    CONFIG.brand.danger
-  );
-}
-
-function warningEmbed(title, description) {
-  return baseEmbed(
-    `! ${title}`,
-    description,
-    CONFIG.brand.warning
-  );
-}
-
-function infoEmbed(title, description) {
-  return baseEmbed(
-    `• ${title}`,
-    description,
-    CONFIG.brand.info
-  );
-}
-
-function premiumHeader() {
-  return [
-    `**${CONFIG.brand.name}**`,
-    `*${CONFIG.brand.subtitle}*`
-  ].join('\n');
-}
 
 /* =========================================================
-   09 — PERMISSÕES
+   CALL PERMITIDA
 ========================================================= */
 
-function hasAnyRole(member, roleIds) {
-  if (!member?.roles?.cache) return false;
-
-  return roleIds.some(roleId =>
-    member.roles.cache.has(roleId)
-  );
-}
-
-function isAdmin(member) {
-  return hasAnyRole(member, CONFIG.roles.admins);
-}
-
-function isTicketStaff(member) {
-  return hasAnyRole(member, CONFIG.roles.ticketStaff);
-}
-
-function canManageTickets(member) {
-  return isTicketStaff(member);
-}
-
-/* =========================================================
-   10 — LOGS
-========================================================= */
-
-async function sendLog(guild, embed) {
-  if (!guild) return;
-
-  const channelId =
-    CONFIG.logs.channelId ||
-    CONFIG.ticket.logChannelId;
-
-  if (!channelId) return;
-
-  try {
-    const channel = await guild.channels.fetch(channelId);
-
-    if (!channel?.isTextBased()) return;
-
-    await channel.send({ embeds: [embed] });
-  } catch (error) {
-    console.error('⚠️ Não foi possível enviar log:', error.message);
-  }
-}
-
-async function logAction(guild, title, description, color) {
-  const embed = baseEmbed(
-    `LOG • ${title}`,
-    description,
-    color
-  );
-
-  await sendLog(guild, embed);
-}
-
-/* =========================================================
-   11 — PAINEL CENTRAL
-========================================================= */
-
-function centralPanelEmbed() {
-  return baseEmbed(
-    'PAVUNA | CENTRAL OPERACIONAL',
-    [
-      premiumHeader(),
-      '',
-      '**Bem-vindo à Central Oficial da Pavuna.**',
-      '',
-      'Este painel concentra os principais serviços operacionais do servidor.',
-      '',
-      '**ACESSOS DISPONÍVEIS**',
-      '',
-      '📋 **RECRUTAMENTO**',
-      'Processo oficial para novos integrantes.',
-      '',
-      '📝 **REGISTRO**',
-      'Atualização de Nick e ID.',
-      '',
-      '⏱️ **JORNADA**',
-      'Controle e acompanhamento do ponto.',
-      '',
-      '🎫 **ATENDIMENTO**',
-      'Central para solicitações e suporte.',
-      '',
-      '> **Selecione uma das opções abaixo para continuar.**'
-    ].join('\n')
-  );
-}
-
-function centralPanelRows() {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('central_edital')
-        .setLabel('RECRUTAMENTO')
-        .setEmoji('📋')
-        .setStyle(ButtonStyle.Secondary),
-
-      new ButtonBuilder()
-        .setCustomId('central_registro')
-        .setLabel('REGISTRO')
-        .setEmoji('📝')
-        .setStyle(ButtonStyle.Secondary),
-
-      new ButtonBuilder()
-        .setCustomId('central_ponto')
-        .setLabel('JORNADA')
-        .setEmoji('⏱️')
-        .setStyle(ButtonStyle.Secondary)
-    ),
-
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('central_ticket')
-        .setLabel('ATENDIMENTO')
-        .setEmoji('🎫')
-        .setStyle(ButtonStyle.Secondary),
-
-      new ButtonBuilder()
-        .setCustomId('central_admin')
-        .setLabel('ADMINISTRAÇÃO')
-        .setEmoji('🛡️')
-        .setStyle(ButtonStyle.Secondary)
-    )
-  ];
-}
-
-/* =========================================================
-   12 — PAINEL EDITAL
-========================================================= */
-
-function recruitmentPanelEmbed() {
-  return baseEmbed(
-    'PAVUNA | RECRUTAMENTO OFICIAL',
-    [
-      '**PROCESSO SELETIVO**',
-      '',
-      'Interessado em fazer parte da Pavuna?',
-      '',
-      'O recrutamento possui etapas individuais e perguntas com tempo determinado. Leia atentamente cada questão antes de responder.',
-      '',
-      '**DIRETRIZES**',
-      '• Responda todas as etapas.',
-      '• Não abandone o processo durante uma pergunta.',
-      '• Mantenha respostas claras e coerentes.',
-      '• Respeite o limite de tempo.',
-      '',
-      '**ESTRUTURA**',
-      `• ${RECRUITMENT_QUESTIONS.length} perguntas`,
-      '• Perguntas abertas e objetivas',
-      '• Avaliação automática das questões objetivas',
-      '',
-      '> **Ao iniciar, o cronômetro da primeira etapa será iniciado.**'
-    ].join('\n')
-  )
-    .setImage(CONFIG.images.edital)
-    .addFields({
-      name: 'STATUS',
-      value: '🟢 Recrutamento disponível',
-      inline: true
-    }, {
-      name: 'TIPO',
-      value: '📋 Processo individual',
-      inline: true
-    });
-}
-
-function recruitmentPanelRow() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('recruitment_start')
-      .setLabel('INICIAR RECRUTAMENTO')
-      .setEmoji('📋')
-      .setStyle(ButtonStyle.Secondary)
-  );
-}
-
-/* =========================================================
-   13 — RECRUTAMENTO: MODAIS
-========================================================= */
-
-function recruitmentModal(question, sessionId) {
-  const modal = new ModalBuilder()
-    .setCustomId(`recruitment_answer:${sessionId}:${question.id}`)
-    .setTitle(`Etapa ${question.id} • Pavuna`);
-
-  const input = new TextInputBuilder()
-    .setCustomId('answer')
-    .setLabel(question.title.slice(0, 45))
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
-    .setMaxLength(1000)
-    .setPlaceholder(
-      question.type === 'choice'
-        ? 'Digite A, B, C ou D'
-        : 'Digite sua resposta...'
-    );
-
-  if (question.id === 4) {
-    input.setMinLength(10);
-  }
-
-  if (question.numeric) {
-    input.setStyle(TextInputStyle.Short);
-    input.setPlaceholder('Digite apenas números');
-    input.setMaxLength(12);
-  }
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(input)
-  );
-
-  return modal;
-}
-
-/* =========================================================
-   14 — RECRUTAMENTO: EMBED DA PERGUNTA
-========================================================= */
-
-function recruitmentQuestionEmbed(question, session) {
-  const startedAt = session.questionStartedAt;
-  const endsAt = startedAt + question.time;
-
-  let description = [
-    `**ETAPA ${question.id} DE ${RECRUITMENT_QUESTIONS.length}**`,
-    '',
-    `**${question.title}**`,
-    ''
-  ];
-
-  if (question.type === 'choice') {
-    description.push(
-      ...question.choices.map(
-        ([letter, text]) => `**${letter})** ${text}`
-      ),
-      ''
-    );
-  }
-
-  description.push(
-    `⏱️ **Início:** ${discordTimestamp(new Date(startedAt))}`,
-    `⏳ **Limite:** ${formatShortDuration(question.time)}`,
-    `🔚 **Término:** ${discordTimestamp(new Date(endsAt))}`,
-    '',
-    '> Envie sua resposta através do botão abaixo.'
-  );
-
-  return baseEmbed(
-    `📋 RECRUTAMENTO • ETAPA ${question.id}`,
-    description.join('\n')
-  );
-}
-
-function recruitmentQuestionRow(question) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`recruitment_respond:${question.id}`)
-      .setLabel('RESPONDER ETAPA')
-      .setEmoji('✍️')
-      .setStyle(ButtonStyle.Secondary)
-  );
-}
-
-/* =========================================================
-   15 — RECRUTAMENTO: SESSÃO
-========================================================= */
-
-function createRecruitmentSession(userId, channelId) {
-  const sessionId =
-    `${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  const session = {
-    id: sessionId,
-    userId,
-    channelId,
-    currentIndex: 0,
-    answers: {},
-    startedAt: Date.now(),
-    questionStartedAt: Date.now(),
-    completed: false,
-    score: 0
-  };
-
-  recrutamentosAtivos.set(userId, session);
-
-  return session;
-}
-
-function getRecruitmentSession(userId) {
-  return recrutamentosAtivos.get(userId) || null;
-}
-
-function currentRecruitmentQuestion(session) {
-  return RECRUITMENT_QUESTIONS[session.currentIndex];
-}
-
-function recruitmentTimeExpired(session, question) {
-  return Date.now() > session.questionStartedAt + question.time;
-}
-
-/* =========================================================
-   16 — RECRUTAMENTO: AVALIAÇÃO
-========================================================= */
-
-function validateRecruitmentAnswer(question, answer) {
-  const value = String(answer || '').trim();
-
-  if (!value) {
-    return {
-      valid: false,
-      reason: 'Resposta vazia.'
-    };
-  }
-
-  if (question.numeric && !isNumeric(value)) {
-    return {
-      valid: false,
-      reason: 'Esta etapa aceita apenas números.'
-    };
-  }
-
-  if (question.id === 4) {
-    const lines = value.split(/\r?\n/).filter(Boolean);
-
-    if (lines.length < 2 && value.length < 30) {
-      return {
-        valid: false,
-        reason: 'A resposta deve conter pelo menos duas linhas ou desenvolvimento equivalente.'
-      };
-    }
-  }
-
-  return {
-    valid: true
-  };
-}
-
-function scoreRecruitment(session) {
-  let correct = 0;
-
-  for (const question of RECRUITMENT_QUESTIONS) {
-    if (question.type !== 'choice') continue;
-
-    const answer = normalizeAnswer(
-      session.answers[question.id]
-    );
-
-    if (answer === question.answer) {
-      correct++;
-    }
-  }
-
-  session.score = correct;
-
-  return correct;
-}
-
-/* =========================================================
-   17 — RECRUTAMENTO: RESULTADO
-========================================================= */
-
-function recruitmentResultEmbed(session, approved) {
-  const score = scoreRecruitment(session);
-
-  if (approved) {
-    return successEmbed(
-      'RECRUTAMENTO APROVADO',
-      [
-        '**Parabéns. Seu processo foi concluído com aprovação.**',
-        '',
-        `**Resultado objetivo:** ${score}/5`,
-        `**Candidato:** <@${session.userId}>`,
-        '',
-        'Sua entrada foi registrada e os cargos de aprovação serão aplicados.',
-        '',
-        '> Aguarde as próximas orientações da equipe.'
-      ].join('\n')
-    );
-  }
-
-  return errorEmbed(
-    'RECRUTAMENTO NÃO APROVADO',
-    [
-      '**Seu processo foi encerrado sem aprovação.**',
-      '',
-      `**Resultado objetivo:** ${score}/5`,
-      `**Candidato:** <@${session.userId}>`,
-      '',
-      'Estude as regras do servidor e retorne futuramente para realizar um novo processo, conforme as regras da Pavuna.'
-    ].join('\n')
-  );
-}
-
-/* =========================================================
-   18 — RECRUTAMENTO: CRIAÇÃO DO CANAL
-========================================================= */
-
-async function createRecruitmentChannel(interaction) {
-  const guild = interaction.guild;
-  const user = interaction.user;
-
-  const existing = guild.channels.cache.find(channel =>
-    channel.topic?.includes(`recruitmentOwner:${user.id}`)
-  );
-
-  if (existing) {
-    return {
-      error: `Você já possui um processo aberto em ${existing}.`
-    };
-  }
-
-  const overwrites = [
-    {
-      id: guild.id,
-      deny: [PermissionsBitField.Flags.ViewChannel]
-    },
-
-    {
-      id: user.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-        PermissionsBitField.Flags.AttachFiles
-      ]
-    },
-
-    {
-      id: client.user.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-        PermissionsBitField.Flags.ManageChannels,
-        PermissionsBitField.Flags.ManageMessages
-      ]
-    }
-  ];
-
-  for (const roleId of CONFIG.roles.editalAccess) {
-    overwrites.push({
-      id: roleId,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory
-      ]
-    });
-  }
-
-  const channel = await guild.channels.create({
-    name: `recrutamento-${cleanChannelName(user.username)}`,
-    type: ChannelType.GuildText,
-    topic: `recruitmentOwner:${user.id}|status:active`,
-    permissionOverwrites: overwrites
-  });
-
-  return {
-    channel
-  };
-}
-
-/* =========================================================
-   19 — RECRUTAMENTO: INÍCIO
-========================================================= */
-
-async function startRecruitment(interaction) {
-  if (recrutamentosAtivos.has(interaction.user.id)) {
-    return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'PROCESSO EM ANDAMENTO',
-          'Você já possui um recrutamento ativo.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const result = await createRecruitmentChannel(interaction);
-
-  if (result.error) {
-    return interaction.reply({
-      embeds: [warningEmbed('PROCESSO EXISTENTE', result.error)],
-      ephemeral: true
-    });
-  }
-
-  const channel = result.channel;
-
-  const session = createRecruitmentSession(
-    interaction.user.id,
-    channel.id
-  );
-
-  const question = currentRecruitmentQuestion(session);
-
-  await channel.send({
-    content: `${interaction.user}`,
-    embeds: [
-      infoEmbed(
-        'PROCESSO INICIADO',
-        [
-          '**Bem-vindo ao recrutamento da Pavuna.**',
-          '',
-          'Leia cada etapa com atenção.',
-          'Cada pergunta possui um tempo específico.',
-          '',
-          `**Candidato:** ${interaction.user}`,
-          `**Início:** ${discordTimestamp()}`,
-          '',
-          '> O processo será encerrado automaticamente caso o tempo de uma etapa seja excedido.'
-        ].join('\n')
-      ),
-      recruitmentQuestionEmbed(question, session)
-    ],
-    components: [
-      recruitmentQuestionRow(question)
-    ]
-  });
-
-  await interaction.reply({
-    embeds: [
-      successEmbed(
-        'RECRUTAMENTO ABERTO',
-        `Seu processo foi criado em ${channel}.`
-      )
-    ],
-    ephemeral: true
-  });
-
-  scheduleRecruitmentTimeout(session);
-}
-
-/* =========================================================
-   20 — RECRUTAMENTO: TIMEOUT
-========================================================= */
-
-function scheduleRecruitmentTimeout(session) {
-  const question = currentRecruitmentQuestion(session);
-
-  if (!question) return;
-
-  const remaining =
-    question.time -
-    (Date.now() - session.questionStartedAt);
-
-  if (remaining <= 0) {
-    expireRecruitment(session);
-    return;
-  }
-
-  setTimeout(() => {
-    const current = recrutamentosAtivos.get(session.userId);
-
-    if (!current) return;
-
-    if (current.currentIndex !== session.currentIndex) {
-      return;
-    }
-
-    if (!recruitmentTimeExpired(current, question)) {
-      return;
-    }
-
-    expireRecruitment(current);
-  }, remaining + 1000);
-}
-
-async function expireRecruitment(session) {
-  if (!recrutamentosAtivos.has(session.userId)) {
-    return;
-  }
-
-  recrutamentosAtivos.delete(session.userId);
-
-  try {
-    const guild = client.guilds.cache.get(
-      GUILD_ID || undefined
-    );
-
-    const channel = await client.channels.fetch(
-      session.channelId
-    );
-
-    if (channel?.isTextBased()) {
-      await channel.send({
-        embeds: [
-          errorEmbed(
-            'TEMPO ESGOTADO',
-            [
-              '**O tempo desta etapa foi excedido.**',
-              '',
-              'O processo foi encerrado automaticamente.',
-              '',
-              '> Você poderá retornar futuramente para realizar um novo processo, conforme as regras da Pavuna.'
-            ].join('\n')
-          )
-        ]
-      });
-
-      setTimeout(() => {
-        channel.delete().catch(() => {});
-      }, 5000);
-    }
-
-    if (guild) {
-      await logAction(
-        guild,
-        'RECRUTAMENTO ENCERRADO',
-        `O processo de <@${session.userId}> foi encerrado por tempo excedido.`,
-        CONFIG.brand.danger
-      );
-    }
-  } catch (error) {
-    console.error('Erro ao expirar recrutamento:', error);
-  }
-}
-
-/* =========================================================
-   21 — RECRUTAMENTO: RESPOSTA
-========================================================= */
-
-async function submitRecruitmentAnswer(
-  interaction,
-  sessionId,
-  questionId
+function membroEstaEmCallPermitida(
+  member
 ) {
-  const session =
-    recrutamentosAtivos.get(interaction.user.id);
-
-  if (!session || session.id !== sessionId) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'PROCESSO INVÁLIDO',
-          'Este processo não está mais ativo.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const question =
-    RECRUITMENT_QUESTIONS.find(q => q.id === questionId);
-
-  if (!question) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'ETAPA NÃO ENCONTRADA',
-          'Não foi possível localizar esta etapa.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
 
   if (
-    session.currentIndex !==
-    RECRUITMENT_QUESTIONS.findIndex(
-      q => q.id === questionId
-    )
+    !member?.voice?.channelId
   ) {
-    return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'ETAPA INCORRETA',
-          'Esta não é a etapa atual do seu processo.'
-        )
-      ],
-      ephemeral: true
-    });
+
+    return false;
   }
 
-  if (recruitmentTimeExpired(session, question)) {
-    await expireRecruitment(session);
-
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'TEMPO ESGOTADO',
-          'O tempo da etapa terminou.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const answer =
-    interaction.fields.getTextInputValue('answer').trim();
-
-  const validation =
-    validateRecruitmentAnswer(question, answer);
-
-  if (!validation.valid) {
-    return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'RESPOSTA INVÁLIDA',
-          validation.reason
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  session.answers[question.id] = answer;
-
-  session.currentIndex++;
-
-  if (
-    session.currentIndex >=
-    RECRUITMENT_QUESTIONS.length
-  ) {
-    session.completed = true;
-
-    const score = scoreRecruitment(session);
-
-    const approved = score >= 4;
-
-    recrutamentosAtivos.delete(interaction.user.id);
-
-    if (approved) {
-      for (const roleId of CONFIG.roles.approved) {
-        const role = interaction.guild.roles.cache.get(roleId);
-
-        if (role) {
-          await interaction.member.roles.add(role).catch(() => {});
-        }
-      }
-    }
-
-    await interaction.reply({
-      embeds: [
-        recruitmentResultEmbed(
-          session,
-          approved
-        )
-      ],
-      ephemeral: false
-    });
-
-    await logAction(
-      interaction.guild,
-      approved
-        ? 'RECRUTAMENTO APROVADO'
-        : 'RECRUTAMENTO REPROVADO',
-      [
-        `**Candidato:** ${interaction.user}`,
-        `**Resultado:** ${score}/5`,
-        `**Status:** ${approved ? 'Aprovado' : 'Reprovado'}`
-      ].join('\n'),
-      approved
-        ? CONFIG.brand.success
-        : CONFIG.brand.danger
+  return CONFIG.pontoVoiceChannels
+    .includes(
+      member.voice.channelId
     );
+}
 
-    setTimeout(() => {
-      interaction.channel.delete().catch(() => {});
-    }, 8000);
+
+/* =========================================================
+   LOGS
+========================================================= */
+
+async function sendLog(
+  guild,
+  content
+) {
+
+  if (
+    !guild ||
+    !CONFIG.logChannelId
+  ) {
 
     return;
-  }
-
-  session.questionStartedAt = Date.now();
-
-  const nextQuestion =
-    currentRecruitmentQuestion(session);
-
-  await interaction.reply({
-    embeds: [
-      successEmbed(
-        'RESPOSTA REGISTRADA',
-        [
-          `A etapa **${question.id}** foi registrada.`,
-          '',
-          `Avançando para a etapa **${nextQuestion.id}**.`
-        ].join('\n')
-      ),
-      recruitmentQuestionEmbed(
-        nextQuestion,
-        session
-      )
-    ],
-    components: [
-      recruitmentQuestionRow(nextQuestion)
-    ]
-  });
-
-  scheduleRecruitmentTimeout(session);
-}
-
-/* =========================================================
-   22 — REGISTRO
-========================================================= */
-
-function registrationEmbed() {
-  return baseEmbed(
-    'PAVUNA | REGISTRO OPERACIONAL',
-    [
-      '**IDENTIFICAÇÃO OFICIAL**',
-      '',
-      'Utilize este sistema para registrar seu Nick e seu ID no servidor.',
-      '',
-      '**PADRÃO**',
-      '`⋆ 𝓟𝓥𝓝 ⋆ NICK ⋆ ID`',
-      '',
-      '**EXEMPLO**',
-      '`⋆ 𝓟𝓥𝓝 ⋆ bispo ⋆ 1325`',
-      '',
-      '**INFORMAÇÕES**',
-      '• Nick será usado no registro.',
-      '• ID deve conter somente números.',
-      '• O apelido será atualizado automaticamente.',
-      '',
-      '> **Confira seus dados antes de confirmar.**'
-    ].join('\n')
-  )
-    .setImage(CONFIG.images.registro)
-    .addFields({
-      name: 'SISTEMA',
-      value: '🟢 Operacional',
-      inline: true
-    }, {
-      name: 'FORMATO',
-      value: 'Nick + ID',
-      inline: true
-    });
-}
-
-function registrationRow() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('registration_open')
-      .setLabel('REALIZAR REGISTRO')
-      .setEmoji('📝')
-      .setStyle(ButtonStyle.Secondary)
-  );
-}
-
-function registrationModal() {
-  const modal = new ModalBuilder()
-    .setCustomId('registration_modal')
-    .setTitle('Registro Oficial • Pavuna');
-
-  const nick = new TextInputBuilder()
-    .setCustomId('nick')
-    .setLabel('Nick')
-    .setPlaceholder('Digite seu nick')
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(32);
-
-  const id = new TextInputBuilder()
-    .setCustomId('id')
-    .setLabel('ID')
-    .setPlaceholder('Digite apenas números')
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(12);
-
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(nick),
-    new ActionRowBuilder().addComponents(id)
-  );
-
-  return modal;
-}
-
-async function processRegistration(interaction) {
-  const nick =
-    interaction.fields.getTextInputValue('nick').trim();
-
-  const id =
-    interaction.fields.getTextInputValue('id').trim();
-
-  if (!nick) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'NICK INVÁLIDO',
-          'Informe um Nick válido.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  if (!isNumeric(id)) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'ID INVÁLIDO',
-          'O ID deve conter somente números.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const newNickname =
-    `⋆ 𝓟𝓥𝓝 ⋆ ${nick} ⋆ ${id}`;
-
-  try {
-    await interaction.member.setNickname(
-      newNickname
-    );
-
-    await logAction(
-      interaction.guild,
-      'REGISTRO REALIZADO',
-      [
-        `**Membro:** ${interaction.user}`,
-        `**Nick:** ${nick}`,
-        `**ID:** ${id}`,
-        `**Resultado:** ${newNickname}`
-      ].join('\n'),
-      CONFIG.brand.success
-    );
-
-    return interaction.reply({
-      embeds: [
-        successEmbed(
-          'REGISTRO CONCLUÍDO',
-          [
-            '**Seu registro foi realizado com sucesso.**',
-            '',
-            `**Nick:** ${nick}`,
-            `**ID:** ${id}`,
-            '',
-            `**Novo apelido:**\n\`${newNickname}\``,
-            '',
-            'Seu cadastro foi processado automaticamente.'
-          ].join('\n')
-        )
-      ],
-      ephemeral: true
-    });
-  } catch (error) {
-    console.error('Erro no registro:', error);
-
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'NÃO FOI POSSÍVEL REGISTRAR',
-          [
-            'Não consegui alterar seu apelido.',
-            '',
-            '**Verifique:**',
-            '• Permissão Gerenciar Apelidos.',
-            '• Hierarquia do cargo do bot.',
-            '• Limite de caracteres do apelido.'
-          ].join('\n')
-        )
-      ],
-      ephemeral: true
-    });
-  }
-}
-
-/* =========================================================
-   23 — PONTO
-========================================================= */
-
-function pointPanelEmbed() {
-  return baseEmbed(
-    'PAVUNA | CONTROLE DE JORNADA',
-    [
-      '**SISTEMA DE PONTO OPERACIONAL**',
-      '',
-      'Registre suas atividades de forma organizada e acompanhe seu desempenho semanal.',
-      '',
-      '**META SEMANAL**',
-      '⏱️ **07 horas**',
-      '',
-      '**FUNCIONAMENTO**',
-      '▶️ Inicie sua jornada em um canal autorizado.',
-      '⏹️ Encerre quando finalizar.',
-      '🏆 Consulte o ranking quando necessário.',
-      '',
-      '**IMPORTANTE**',
-      'O ponto também será encerrado automaticamente caso você deixe um canal de voz autorizado.',
-      '',
-      '> **Mantenha sua jornada corretamente registrada.**'
-    ].join('\n')
-  );
-}
-
-function pointPanelRows() {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('point_start')
-        .setLabel('INICIAR JORNADA')
-        .setEmoji('▶️')
-        .setStyle(ButtonStyle.Secondary),
-
-      new ButtonBuilder()
-        .setCustomId('point_end')
-        .setLabel('ENCERRAR JORNADA')
-        .setEmoji('⏹️')
-        .setStyle(ButtonStyle.Secondary)
-    ),
-
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('point_ranking')
-        .setLabel('RANKING SEMANAL')
-        .setEmoji('🏆')
-        .setStyle(ButtonStyle.Secondary)
-    )
-  ];
-}
-
-function inAuthorizedVoice(member) {
-  return Boolean(
-    member.voice.channelId &&
-    CONFIG.voiceChannels.includes(
-      member.voice.channelId
-    )
-  );
-}
-
-async function startPoint(interaction) {
-  const userId = interaction.user.id;
-
-  if (pontosAtivos.has(userId)) {
-    return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'JORNADA JÁ INICIADA',
-          [
-            'Você já possui uma jornada ativa.',
-            '',
-            'Finalize a jornada atual antes de iniciar outra.'
-          ].join('\n')
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  if (!inAuthorizedVoice(interaction.member)) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'CANAL NÃO AUTORIZADO',
-          [
-            'Para iniciar o ponto, você precisa estar em um canal de voz autorizado.',
-            '',
-            'Entre em um canal operacional e tente novamente.'
-          ].join('\n')
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const data = ensurePointUser(userId);
-
-  const now = Date.now();
-
-  data.lastStart = now;
-
-  pontosAtivos.set(userId, {
-    start: now,
-    channelId: interaction.member.voice.channelId
-  });
-
-  writeJson(POINTS_FILE, pontos);
-
-  await logAction(
-    interaction.guild,
-    'JORNADA INICIADA',
-    [
-      `**Membro:** ${interaction.user}`,
-      `**Início:** ${discordTimestamp(new Date(now))}`,
-      `**Canal:** <#${interaction.member.voice.channelId}>`
-    ].join('\n'),
-    CONFIG.brand.info
-  );
-
-  return interaction.reply({
-    embeds: [
-      successEmbed(
-        'JORNADA INICIADA',
-        [
-          '**Seu ponto foi iniciado com sucesso.**',
-          '',
-          `**Início:** ${discordTimestamp(new Date(now))}`,
-          `**Canal:** <#${interaction.member.voice.channelId}>`,
-          '',
-          '> Utilize **ENCERRAR JORNADA** ao finalizar suas atividades.'
-        ].join('\n')
-      )
-    ],
-    ephemeral: true
-  });
-}
-
-async function endPoint(interaction, automatic = false) {
-  const userId = interaction.user.id;
-
-  const active = pontosAtivos.get(userId);
-
-  if (!active) {
-    return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'NENHUMA JORNADA ATIVA',
-          'Você não possui uma jornada aberta.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const now = Date.now();
-  const elapsed = Math.max(0, now - active.start);
-
-  const data = ensurePointUser(userId);
-
-  data.weekly += elapsed;
-  data.total += elapsed;
-  data.sessions += 1;
-  data.lastEnd = now;
-
-  pontosAtivos.delete(userId);
-
-  writeJson(POINTS_FILE, pontos);
-
-  const reached =
-    data.weekly >= CONFIG.point.weeklyGoal;
-
-  await logAction(
-    interaction.guild,
-    automatic
-      ? 'JORNADA ENCERRADA AUTOMATICAMENTE'
-      : 'JORNADA ENCERRADA',
-    [
-      `**Membro:** ${interaction.user}`,
-      `**Sessão:** ${formatDuration(elapsed)}`,
-      `**Semanal:** ${formatDuration(data.weekly)}`,
-      `**Total:** ${formatDuration(data.total)}`
-    ].join('\n'),
-    CONFIG.brand.success
-  );
-
-  return interaction.reply({
-    embeds: [
-      successEmbed(
-        automatic
-          ? 'JORNADA ENCERRADA AUTOMATICAMENTE'
-          : 'JORNADA ENCERRADA',
-        [
-          '**Registro salvo com sucesso.**',
-          '',
-          `**Duração da sessão:** ${formatDuration(elapsed)}`,
-          `**Total semanal:** ${formatDuration(data.weekly)}`,
-          `**Total acumulado:** ${formatDuration(data.total)}`,
-          '',
-          reached
-            ? '✓ **Meta semanal atingida.**'
-            : `⏳ **Faltam:** ${formatDuration(CONFIG.point.weeklyGoal - data.weekly)}`
-        ].join('\n')
-      )
-    ],
-    ephemeral: !automatic
-  });
-}
-
-async function pointRanking(interaction) {
-  if (!isAdmin(interaction.member)) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'ACESSO RESTRITO',
-          'O ranking semanal é de acesso administrativo.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const list = [];
-
-  for (const [userId, data] of Object.entries(pontos)) {
-    let weekly = Number(data.weekly || 0);
-
-    const active = pontosAtivos.get(userId);
-
-    if (active) {
-      weekly += Date.now() - active.start;
-    }
-
-    list.push({
-      userId,
-      weekly,
-      total: Number(data.total || 0)
-    });
-  }
-
-  list.sort((a, b) =>
-    b.weekly - a.weekly
-  );
-
-  const top = list.slice(0, 20);
-
-  if (!top.length) {
-    return interaction.reply({
-      embeds: [
-        infoEmbed(
-          'RANKING VAZIO',
-          'Ainda não existem registros de jornada.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const lines = [];
-
-  for (let i = 0; i < top.length; i++) {
-    const item = top[i];
-
-    let display = `<@${item.userId}>`;
-
-    try {
-      const member =
-        await interaction.guild.members.fetch(
-          item.userId
-        );
-
-      display = member.displayName;
-    } catch {}
-
-    lines.push(
-      `**${String(i + 1).padStart(2, '0')}.** ${display} — \`${formatShortDuration(item.weekly)}\``
-    );
-  }
-
-  return interaction.reply({
-    embeds: [
-      baseEmbed(
-        '🏆 PAVUNA | RANKING SEMANAL',
-        [
-          '**CLASSIFICAÇÃO OPERACIONAL**',
-          '',
-          lines.join('\n'),
-          '',
-          `**Meta semanal:** ${formatShortDuration(CONFIG.point.weeklyGoal)}`,
-          `**Semana:** ${currentWeekKey()}`,
-          '',
-          '> Os tempos ativos são considerados em tempo real.'
-        ].join('\n'),
-        CONFIG.brand.neutral
-      )
-    ],
-    ephemeral: true
-  });
-}
-
-/* =========================================================
-   24 — TICKETS
-========================================================= */
-
-const TICKET_CATEGORIES = {
-  encomendas: {
-    label: 'Encomendas',
-    emoji: '📦',
-    description: 'Solicitações relacionadas a encomendas.'
-  },
-
-  denuncias: {
-    label: 'Denúncias',
-    emoji: '🚨',
-    description: 'Reporte uma situação para análise.'
-  },
-
-  duvidas: {
-    label: 'Dúvidas',
-    emoji: '❓',
-    description: 'Esclareça dúvidas com a equipe.'
-  },
-
-  outros: {
-    label: 'Outros Assuntos',
-    emoji: '📌',
-    description: 'Outras solicitações.'
-  }
-};
-
-function ticketPanelEmbed() {
-  return baseEmbed(
-    'PAVUNA | CENTRAL DE ATENDIMENTO',
-    [
-      '**SUPORTE OFICIAL**',
-      '',
-      'Precisa falar com nossa equipe?',
-      'Abra um atendimento selecionando a categoria adequada.',
-      '',
-      '📦 **ENCOMENDAS**',
-      'Assuntos relacionados a encomendas.',
-      '',
-      '🚨 **DENÚNCIAS**',
-      'Situações que precisam de análise.',
-      '',
-      '❓ **DÚVIDAS**',
-      'Perguntas e esclarecimentos.',
-      '',
-      '📌 **OUTROS ASSUNTOS**',
-      'Solicitações que não se encaixam nas categorias anteriores.',
-      '',
-      '> **Selecione uma categoria abaixo para iniciar.**'
-    ].join('\n')
-  )
-    .setImage(CONFIG.images.ticket)
-    .addFields({
-      name: 'ATENDIMENTO',
-      value: '🟢 Disponível',
-      inline: true
-    }, {
-      name: 'EQUIPE',
-      value: '🛡️ Suporte',
-      inline: true
-    });
-}
-
-function ticketPanelRow() {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('ticket_category')
-      .setPlaceholder('Selecione o assunto do atendimento...')
-      .addOptions(
-        Object.entries(TICKET_CATEGORIES)
-          .map(([value, category]) =>
-            new StringSelectMenuOptionBuilder()
-              .setLabel(category.label)
-              .setDescription(category.description)
-              .setEmoji(category.emoji)
-              .setValue(value)
-          )
-      )
-  );
-}
-
-function ticketActionRows() {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('ticket_claim')
-        .setLabel('REIVINDICAR')
-        .setEmoji('🙋')
-        .setStyle(ButtonStyle.Secondary),
-
-      new ButtonBuilder()
-        .setCustomId('ticket_close')
-        .setLabel('FECHAR ATENDIMENTO')
-        .setEmoji('🔒')
-        .setStyle(ButtonStyle.Danger)
-    ),
-
-    new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId('ticket_manage')
-        .setPlaceholder('Gerenciar participantes...')
-        .addOptions(
-          new StringSelectMenuOptionBuilder()
-            .setLabel('Adicionar um player')
-            .setDescription('Adicionar um membro ao atendimento.')
-            .setEmoji('➕')
-            .setValue('add'),
-
-          new StringSelectMenuOptionBuilder()
-            .setLabel('Retirar um player')
-            .setDescription('Retirar um membro do atendimento.')
-            .setEmoji('➖')
-            .setValue('remove')
-        )
-    )
-  ];
-}
-
-function ticketExistsForUser(guild, userId) {
-  return guild.channels.cache.find(channel =>
-    channel.topic?.includes(`ticketOwner:${userId}`)
-  );
-}
-
-function ticketTopic(userId, category, claimedBy = 'none') {
-  return [
-    `ticketOwner:${userId}`,
-    `category:${category}`,
-    `claimedBy:${claimedBy}`
-  ].join('|');
-}
-
-function parseTicketTopic(topic = '') {
-  return {
-    owner:
-      topic.match(/ticketOwner:(\d+)/)?.[1] || null,
-
-    category:
-      topic.match(/category:([^|]+)/)?.[1] || null,
-
-    claimedBy:
-      topic.match(/claimedBy:([^|]+)/)?.[1] || null
-  };
-}
-
-async function createTicket(interaction, categoryKey) {
-  const category =
-    TICKET_CATEGORIES[categoryKey];
-
-  if (!category) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'CATEGORIA INVÁLIDA',
-          'A categoria selecionada não existe.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const existing =
-    ticketExistsForUser(
-      interaction.guild,
-      interaction.user.id
-    );
-
-  if (existing) {
-    return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'ATENDIMENTO JÁ EXISTE',
-          `Você já possui um atendimento aberto em ${existing}.`
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const overwrites = [
-    {
-      id: interaction.guild.id,
-      deny: [
-        PermissionsBitField.Flags.ViewChannel
-      ]
-    },
-
-    {
-      id: interaction.user.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-        PermissionsBitField.Flags.AttachFiles
-      ]
-    },
-
-    {
-      id: client.user.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-        PermissionsBitField.Flags.AttachFiles,
-        PermissionsBitField.Flags.ManageChannels,
-        PermissionsBitField.Flags.ManageMessages
-      ]
-    }
-  ];
-
-  for (const roleId of CONFIG.roles.ticketStaff) {
-    overwrites.push({
-      id: roleId,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-        PermissionsBitField.Flags.AttachFiles
-      ]
-    });
-  }
-
-  const channelData = {
-    name: `${cleanChannelName(interaction.user.username)}-${categoryKey}`,
-    type: ChannelType.GuildText,
-    topic: ticketTopic(
-      interaction.user.id,
-      categoryKey
-    ),
-    permissionOverwrites: overwrites
-  };
-
-  if (CONFIG.ticket.categoryId) {
-    channelData.parent =
-      CONFIG.ticket.categoryId;
   }
 
   const channel =
-    await interaction.guild.channels.create(
-      channelData
+    guild.channels.cache.get(
+      CONFIG.logChannelId
     );
-
-  tickets[channel.id] = {
-    channelId: channel.id,
-    ownerId: interaction.user.id,
-    category: categoryKey,
-    createdAt: Date.now(),
-    claimedBy: null,
-    closed: false
-  };
-
-  writeJson(TICKETS_FILE, tickets);
-
-  await channel.send({
-    content: `${interaction.user}`,
-    embeds: [
-      baseEmbed(
-        `🎫 ATENDIMENTO • ${category.label.toUpperCase()}`,
-        [
-          `Olá, ${interaction.user}.`,
-          '',
-          `Seu atendimento foi aberto na categoria **${category.label}**.`,
-          '',
-          '**DESCREVA SUA SOLICITAÇÃO**',
-          'Explique o máximo possível para que a equipe consiga compreender e resolver sua solicitação.',
-          '',
-          '**ORIENTAÇÕES**',
-          '• Aguarde um membro da equipe.',
-          '• Evite mensagens desnecessárias.',
-          '• Não marque a equipe repetidamente.',
-          '',
-          '> **Um responsável será acionado para atender você.**'
-        ].join('\n')
-      )
-    ],
-    components: ticketActionRows()
-  });
-
-  await interaction.reply({
-    embeds: [
-      successEmbed(
-        'ATENDIMENTO ABERTO',
-        [
-          'Seu atendimento foi criado.',
-          '',
-          `**Categoria:** ${category.emoji} ${category.label}`,
-          `**Canal:** ${channel}`,
-          '',
-          '> A equipe responsável será acionada.'
-        ].join('\n')
-      )
-    ],
-    ephemeral: true
-  });
-
-  await logAction(
-    interaction.guild,
-    'TICKET ABERTO',
-    [
-      `**Autor:** ${interaction.user}`,
-      `**Categoria:** ${category.label}`,
-      `**Canal:** ${channel}`
-    ].join('\n'),
-    CONFIG.brand.info
-  );
-}
-
-/* =========================================================
-   25 — TICKET: REIVINDICAR
-========================================================= */
-
-async function claimTicket(interaction) {
-  if (!canManageTickets(interaction.member)) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'ACESSO RESTRITO',
-          'Somente membros autorizados da equipe podem reivindicar atendimentos.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const data =
-    parseTicketTopic(
-      interaction.channel.topic || ''
-    );
-
-  if (!data.owner) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'CANAL INVÁLIDO',
-          'Este canal não parece ser um ticket da Pavuna.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
 
   if (
-    data.claimedBy &&
-    data.claimedBy !== 'none'
+    !channel?.isTextBased()
   ) {
-    return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'ATENDIMENTO JÁ REIVINDICADO',
-          `Este atendimento já está sendo tratado por <@${data.claimedBy}>.`
-        )
-      ],
-      ephemeral: true
-    });
+
+    return;
   }
 
-  const updatedTopic =
-    ticketTopic(
-      data.owner,
-      data.category,
-      interaction.user.id
-    );
-
-  await interaction.channel.setTopic(
-    updatedTopic
-  );
-
-  if (tickets[interaction.channel.id]) {
-    tickets[interaction.channel.id].claimedBy =
-      interaction.user.id;
-
-    writeJson(TICKETS_FILE, tickets);
-  }
-
-  await interaction.reply({
-    embeds: [
-      successEmbed(
-        'ATENDIMENTO REIVINDICADO',
-        [
-          `**Responsável:** ${interaction.user}`,
-          '',
-          'Este atendimento foi assumido por um membro da equipe.',
-          '',
-          '> O responsável acompanhará a solicitação a partir de agora.'
-        ].join('\n')
-      )
-    ]
-  });
-
-  await logAction(
-    interaction.guild,
-    'TICKET REIVINDICADO',
-    [
-      `**Responsável:** ${interaction.user}`,
-      `**Canal:** ${interaction.channel}`,
-      `**Cliente:** <@${data.owner}>`
-    ].join('\n'),
-    CONFIG.brand.info
-  );
+  await channel
+    .send({
+      content
+    })
+    .catch(() => {});
 }
 
-/* =========================================================
-   26 — TICKET: FECHAR
-========================================================= */
-
-async function closeTicket(interaction) {
-  const data =
-    parseTicketTopic(
-      interaction.channel.topic || ''
-    );
-
-  if (!data.owner) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'CANAL INVÁLIDO',
-          'Este canal não parece ser um ticket.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const authorized =
-    interaction.user.id === data.owner ||
-    canManageTickets(interaction.member);
-
-  if (!authorized) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'SEM PERMISSÃO',
-          'Você não possui autorização para fechar este atendimento.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  if (tickets[interaction.channel.id]) {
-    tickets[interaction.channel.id].closed = true;
-    tickets[interaction.channel.id].closedAt =
-      Date.now();
-    tickets[interaction.channel.id].closedBy =
-      interaction.user.id;
-
-    writeJson(TICKETS_FILE, tickets);
-  }
-
-  await interaction.reply({
-    embeds: [
-      baseEmbed(
-        '🔒 ATENDIMENTO ENCERRADO',
-        [
-          '**Este atendimento será encerrado em instantes.**',
-          '',
-          `**Encerrado por:** ${interaction.user}`,
-          `**Cliente:** <@${data.owner}>`,
-          '',
-          'Obrigado por utilizar a Central de Atendimento da Pavuna.'
-        ].join('\n'),
-        CONFIG.brand.danger
-      )
-    ]
-  });
-
-  await logAction(
-    interaction.guild,
-    'TICKET FECHADO',
-    [
-      `**Canal:** ${interaction.channel}`,
-      `**Cliente:** <@${data.owner}>`,
-      `**Responsável pelo fechamento:** ${interaction.user}`
-    ].join('\n'),
-    CONFIG.brand.danger
-  );
-
-  setTimeout(() => {
-    interaction.channel.delete().catch(() => {});
-  }, 5000);
-}
 
 /* =========================================================
-   27 — TICKET: MODAL PARTICIPANTE
+   PAINEL DE EDITAL
 ========================================================= */
 
-function participantModal(action) {
-  const modal = new ModalBuilder()
-    .setCustomId(`ticket_participant:${action}`)
+function panelEmbed() {
+
+  return new EmbedBuilder()
+
+    .setColor(0x8b0000)
+
     .setTitle(
-      action === 'add'
-        ? 'Adicionar Participante'
-        : 'Retirar Participante'
-    );
+      '📜・EDITAL • PAVUNA'
+    )
 
-  const input = new TextInputBuilder()
-    .setCustomId('player_id')
-    .setLabel('ID do player')
-    .setPlaceholder('Informe o ID do Discord')
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(25);
+    .setDescription(
+
+      [
+        '## 🏴 PROCESSO DE RECRUTAMENTO',
+
+        '',
+
+        '🚨 Está preparado para fazer parte da **Pavuna**?',
+
+        '',
+
+        'Clique no botão abaixo para iniciar seu processo seletivo.',
+
+        '',
+
+        '### 📌 COMO FUNCIONA',
+
+        '> 🔒 Um canal privado será criado para você.',
+
+        '> ⏱️ Cada pergunta possui seu próprio tempo.',
+
+        '> 🎯 Questões objetivas serão respondidas pelos botões.',
+
+        '> ✍️ Questões discursivas devem ser respondidas por mensagem.',
+
+        '> 🧹 As respostas serão apagadas automaticamente.',
+
+        '> ⏰ O tempo será encerrado automaticamente.',
+
+        '> 🎯 É necessário acertar todas as questões objetivas.',
+
+        '',
+
+        '🍀 **Boa sorte no processo!**'
+
+      ].join('\n')
+
+    )
+
+    .setImage(
+      CONFIG.editalImage
+    )
+
+    .setFooter({
+      text:
+        '🏴 Pavuna • Sistema Oficial de Recrutamento'
+    })
+
+    .setTimestamp();
+}
+
+
+function panelRow() {
+
+  return new ActionRowBuilder()
+
+    .addComponents(
+
+      new ButtonBuilder()
+
+        .setCustomId(
+          'fazer_edital'
+        )
+
+        .setLabel(
+          'Fazer Edital'
+        )
+
+        .setEmoji('📜')
+
+        .setStyle(
+          ButtonStyle.Primary
+        )
+
+    );
+}
+
+
+/* =========================================================
+   REGISTRO
+========================================================= */
+
+function registrarEmbed() {
+
+  return new EmbedBuilder()
+
+    .setColor(0x8b0000)
+
+    .setTitle(
+      '📋・REGISTRO • PAVUNA'
+    )
+
+    .setDescription(
+
+      [
+        '## 🏴 SISTEMA OFICIAL DE REGISTRO',
+
+        '',
+
+        '👋 Bem-vindo ao sistema de registro da **Pavuna**.',
+
+        '',
+
+        'Clique no botão abaixo para realizar seu registro.',
+
+        '',
+
+        '### 📌 COMO FUNCIONA',
+
+        '> 📝 Clique em **Registrar**.',
+
+        '> 👤 Informe seu **Nick**.',
+
+        '> 🆔 Informe seu **ID**.',
+
+        '> ⚙️ Seu apelido será atualizado automaticamente.',
+
+        '',
+
+        '### 🏷️ FORMATO',
+
+        '> `⋆ 𝓟𝓥𝓝 ⋆ 𝓝𝓞𝓜𝓔 ⋆𝓘𝓓`',
+
+        '',
+
+        '### 💡 EXEMPLO',
+
+        '> `⋆ 𝓟𝓥𝓝 ⋆ 𝓫𝓲𝓼𝓹𝓸 ⋆1325`',
+
+        '',
+
+        '⚠️ **Confira seus dados antes de enviar.**'
+
+      ].join('\n')
+
+    )
+
+    .setImage(
+      CONFIG.registrarImage
+    )
+
+    .setFooter({
+      text:
+        '🏴 Pavuna • Sistema de Registro'
+    })
+
+    .setTimestamp();
+}
+
+
+function registrarRow() {
+
+  return new ActionRowBuilder()
+
+    .addComponents(
+
+      new ButtonBuilder()
+
+        .setCustomId(
+          'abrir_registro'
+        )
+
+        .setLabel(
+          'Registrar'
+        )
+
+        .setEmoji('📝')
+
+        .setStyle(
+          ButtonStyle.Primary
+        )
+
+    );
+}
+
+
+/* =========================================================
+   MODAL DE REGISTRO
+========================================================= */
+
+async function abrirModalRegistro(
+  interaction
+) {
+
+  const modal =
+    new ModalBuilder()
+
+      .setCustomId(
+        'modal_registro'
+      )
+
+      .setTitle(
+        '📋 Registro • Pavuna'
+      );
+
+  const nickInput =
+    new TextInputBuilder()
+
+      .setCustomId(
+        'registro_nick'
+      )
+
+      .setLabel(
+        'Qual é o seu Nick?'
+      )
+
+      .setPlaceholder(
+        'Ex: bispo'
+      )
+
+      .setStyle(
+        TextInputStyle.Short
+      )
+
+      .setMinLength(1)
+
+      .setMaxLength(20)
+
+      .setRequired(true);
+
+  const idInput =
+    new TextInputBuilder()
+
+      .setCustomId(
+        'registro_id'
+      )
+
+      .setLabel(
+        'Qual é o seu ID?'
+      )
+
+      .setPlaceholder(
+        'Ex: 1325'
+      )
+
+      .setStyle(
+        TextInputStyle.Short
+      )
+
+      .setMinLength(1)
+
+      .setMaxLength(10)
+
+      .setRequired(true);
 
   modal.addComponents(
-    new ActionRowBuilder().addComponents(input)
+
+    new ActionRowBuilder()
+      .addComponents(
+        nickInput
+      ),
+
+    new ActionRowBuilder()
+      .addComponents(
+        idInput
+      )
+
   );
 
-  return modal;
+  return interaction.showModal(
+    modal
+  );
 }
 
-async function processParticipantChange(
-  interaction,
-  action
+
+async function realizarRegistro(
+  interaction
 ) {
-  if (!canManageTickets(interaction.member)) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'ACESSO RESTRITO',
-          'Somente membros autorizados podem gerenciar participantes.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
 
-  const data =
-    parseTicketTopic(
-      interaction.channel.topic || ''
-    );
-
-  if (!data.owner) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'CANAL INVÁLIDO',
-          'Este canal não é reconhecido como ticket.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const playerId =
+  const nick =
     interaction.fields
-      .getTextInputValue('player_id')
+      .getTextInputValue(
+        'registro_nick'
+      )
       .trim();
 
-  if (!/^\d{15,25}$/.test(playerId)) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'ID INVÁLIDO',
-          'Informe um ID de usuário Discord válido.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
+  const id =
+    interaction.fields
+      .getTextInputValue(
+        'registro_id'
+      )
+      .trim();
 
-  let member;
+  if (
+    !nick ||
+    !id
+  ) {
 
-  try {
-    member =
-      await interaction.guild.members.fetch(
-        playerId
-      );
-  } catch {
     return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'MEMBRO NÃO ENCONTRADO',
-          'Não encontrei esse membro no servidor.'
-        )
-      ],
+      content:
+        '❌ Nick e ID são obrigatórios.',
       ephemeral: true
     });
   }
 
   if (
-    action === 'remove' &&
-    playerId === data.owner
+    !/^\d+$/.test(id)
   ) {
+
     return interaction.reply({
-      embeds: [
-        warningEmbed(
-          'AÇÃO NÃO PERMITIDA',
-          'O criador do ticket não pode ser removido do próprio atendimento.'
-        )
-      ],
+      content:
+        '❌ O ID deve conter somente números.',
       ephemeral: true
     });
   }
 
-  if (action === 'add') {
-    await interaction.channel.permissionOverwrites.edit(
-      member.id,
-      {
-        ViewChannel: true,
-        SendMessages: true,
-        ReadMessageHistory: true,
-        AttachFiles: true
-      }
+  const novoNome =
+    `⋆ 𝓟𝓥𝓝 ⋆ ${nick} ⋆${id}`;
+
+  if (
+    novoNome.length > 32
+  ) {
+
+    return interaction.reply({
+      content:
+        '❌ O apelido ficou muito grande. Diminua o Nick.',
+      ephemeral: true
+    });
+  }
+
+  const member =
+    interaction.member;
+
+  if (
+    !member?.manageable
+  ) {
+
+    return interaction.reply({
+      content:
+        '❌ Não consigo alterar seu apelido. Verifique a hierarquia do bot e a permissão **Gerenciar Apelidos**.',
+      ephemeral: true
+    });
+  }
+
+  try {
+
+    await member.setNickname(
+      novoNome,
+      `Registro Pavuna • ID ${id}`
     );
 
     await interaction.reply({
-      embeds: [
-        successEmbed(
-          'PARTICIPANTE ADICIONADO',
-          [
-            `**Membro:** ${member}`,
-            '',
-            'O membro agora possui acesso a este atendimento.'
-          ].join('\n')
-        )
-      ],
-      ephemeral: true
-    });
-  } else {
-    await interaction.channel.permissionOverwrites.delete(
-      member.id
-    ).catch(() => {});
 
-    await interaction.reply({
       embeds: [
-        successEmbed(
-          'PARTICIPANTE REMOVIDO',
-          [
-            `**Membro:** ${member}`,
-            '',
-            'O acesso individual deste membro foi removido.'
-          ].join('\n')
-        )
+
+        new EmbedBuilder()
+
+          .setColor(0x00cc66)
+
+          .setTitle(
+            '✅・REGISTRO CONCLUÍDO'
+          )
+
+          .setDescription(
+
+            [
+              `👤 **Membro:** ${member}`,
+
+              '',
+
+              `🏷️ **Nick:** ${nick}`,
+
+              `🆔 **ID:** ${id}`,
+
+              '',
+
+              '✨ **Novo nome:**',
+
+              `> ${novoNome}`,
+
+              '',
+
+              '🎉 Seu registro foi realizado com sucesso!'
+
+            ].join('\n')
+
+          )
+
+          .setFooter({
+            text:
+              '🏴 Pavuna • Sistema de Registro'
+          })
+
+          .setTimestamp()
+
       ],
+
+      ephemeral: true
+
+    });
+
+    await sendLog(
+      interaction.guild,
+      [
+        '📝 **NOVO REGISTRO**',
+        '',
+        `👤 Membro: <@${member.id}>`,
+        `🏷️ Nick: ${nick}`,
+        `🆔 ID: ${id}`,
+        `📋 Nome: ${novoNome}`
+      ].join('\n')
+    );
+
+  } catch (error) {
+
+    console.error(
+      '❌ Erro no registro:',
+      error
+    );
+
+    if (
+      !interaction.replied
+    ) {
+
+      await interaction.reply({
+        content:
+          '❌ Não foi possível alterar seu apelido.',
+        ephemeral: true
+      });
+    }
+  }
+}
+
+
+/* =========================================================
+   BATE-PONTO
+========================================================= */
+
+function pontoPainelEmbed() {
+
+  return new EmbedBuilder()
+
+    .setColor(0x8b0000)
+
+    .setTitle(
+      '🕐・BATE-PONTO • PAVUNA'
+    )
+
+    .setDescription(
+
+      [
+        '## 🏴 CONTROLE DE HORÁRIOS',
+
+        '',
+
+        'Olá! Seja bem-vindo ao **Bate-Ponto da Pavuna**.',
+
+        '',
+
+        'Aqui você registra seus horários e acompanha sua atividade na facção.',
+
+        '',
+
+        '### 📌 REGRAS',
+
+        '> 🎙️ Para iniciar o ponto, você precisa estar em uma call autorizada.',
+
+        '> ▶️ Clique em **COMEÇAR** para iniciar.',
+
+        '> 🔒 Clique em **FECHAR** quando terminar.',
+
+        '> 🏆 Use **RANKING** para consultar as horas.',
+
+        '> ⏱️ A meta semanal é de **7 horas**.',
+
+        '',
+
+        '### ⚠️ IMPORTANTE',
+
+        '> 🚪 Ao sair de uma call autorizada, seu ponto será encerrado automaticamente.',
+
+        '> 📊 Suas horas são contabilizadas semanalmente.',
+
+        '',
+
+        '🔥 **Mantenha sua atividade em dia!**'
+
+      ].join('\n')
+
+    )
+
+    .setFooter({
+      text:
+        '🏴 Pavuna • Sistema de Bate-Ponto'
+    })
+
+    .setTimestamp();
+}
+
+
+function pontoPainelRow() {
+
+  return new ActionRowBuilder()
+
+    .addComponents(
+
+      new ButtonBuilder()
+        .setCustomId(
+          'ponto_comecar'
+        )
+        .setLabel(
+          'COMEÇAR'
+        )
+        .setEmoji('▶️')
+        .setStyle(
+          ButtonStyle.Success
+        ),
+
+      new ButtonBuilder()
+        .setCustomId(
+          'ponto_fechar'
+        )
+        .setLabel(
+          'FECHAR'
+        )
+        .setEmoji('🔒')
+        .setStyle(
+          ButtonStyle.Danger
+        ),
+
+      new ButtonBuilder()
+        .setCustomId(
+          'ponto_ranking'
+        )
+        .setLabel(
+          'RANKING'
+        )
+        .setEmoji('🏆')
+        .setStyle(
+          ButtonStyle.Primary
+        )
+
+    );
+}
+
+
+/* =========================================================
+   INICIAR PONTO
+========================================================= */
+
+async function iniciarPonto(
+  interaction
+) {
+
+  const member =
+    interaction.member;
+
+  if (
+    pontosAtivos.has(
+      member.id
+    )
+  ) {
+
+    return interaction.reply({
+      content:
+        '⚠️ Você já possui um ponto em andamento.',
       ephemeral: true
     });
   }
 
-  await logAction(
-    interaction.guild,
-    action === 'add'
-      ? 'PARTICIPANTE ADICIONADO'
-      : 'PARTICIPANTE REMOVIDO',
-    [
-      `**Ticket:** ${interaction.channel}`,
-      `**Membro:** ${member}`,
-      `**Responsável:** ${interaction.user}`
-    ].join('\n'),
-    CONFIG.brand.info
+  if (
+    !membroEstaEmCallPermitida(
+      member
+    )
+  ) {
+
+    return interaction.reply({
+
+      embeds: [
+
+        new EmbedBuilder()
+
+          .setColor(0xff3333)
+
+          .setTitle(
+            '❌・NÃO FOI POSSÍVEL INICIAR'
+          )
+
+          .setDescription(
+
+            [
+              'Você precisa estar em uma **call autorizada**.',
+              '',
+              '🎙️ Entre em uma das salas oficiais e tente novamente.',
+              '',
+              '⏱️ O tempo começará somente após clicar em **COMEÇAR**.'
+            ].join('\n')
+
+          )
+
+      ],
+
+      ephemeral: true
+
+    });
+  }
+
+  const dados =
+    garantirMembroPonto(
+      member.id
+    );
+
+  const inicio =
+    Date.now();
+
+  pontosAtivos.set(
+    member.id,
+    {
+      inicio,
+      channelId:
+        member.voice.channelId
+    }
   );
+
+  await interaction.reply({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0x00cc66)
+
+        .setTitle(
+          '▶️・PONTO INICIADO'
+        )
+
+        .setDescription(
+
+          [
+            `👤 **Membro:** ${member}`,
+            '',
+            `🎙️ **Call:** <#${member.voice.channelId}>`,
+            `🕐 **Início:** <t:${Math.floor(inicio / 1000)}:T>`,
+            '',
+            `📊 **Semana:** ${formatDurationMs(dados.semanal)}`,
+            `🎯 **Meta:** ${formatDurationMs(CONFIG.pontoMetaSemanalMs)}`,
+            '',
+            '🔥 **Bom trabalho!**'
+          ].join('\n')
+
+        )
+
+        .setFooter({
+          text:
+            '🏴 Pavuna • Bate-Ponto'
+        })
+
+        .setTimestamp()
+
+    ],
+
+    ephemeral: true
+
+  });
 }
 
+
 /* =========================================================
-   28 — ADMINISTRAÇÃO
+   FECHAR PONTO
 ========================================================= */
 
-function adminPanelEmbed() {
-  return baseEmbed(
-    'PAVUNA | CENTRAL ADMINISTRATIVA',
+async function fecharPonto(
+  interaction,
+  motivo =
+    'Ponto encerrado manualmente'
+) {
+
+  const member =
+    interaction.member;
+
+  const ativo =
+    pontosAtivos.get(
+      member.id
+    );
+
+  if (!ativo) {
+
+    return interaction.reply({
+      content:
+        '⚠️ Você não possui um ponto em andamento.',
+      ephemeral: true
+    });
+  }
+
+  const tempo =
+    Date.now() -
+    ativo.inicio;
+
+  const dados =
+    garantirMembroPonto(
+      member.id
+    );
+
+  dados.semanal +=
+    tempo;
+
+  dados.total +=
+    tempo;
+
+  pontosAtivos.delete(
+    member.id
+  );
+
+  salvarPontos();
+
+  const meta =
+    dados.semanal >=
+    CONFIG.pontoMetaSemanalMs;
+
+  await interaction.reply({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(
+          meta
+            ? 0x00cc66
+            : 0xff9900
+        )
+
+        .setTitle(
+          meta
+            ? '🏆・PONTO ENCERRADO'
+            : '🔒・PONTO ENCERRADO'
+        )
+
+        .setDescription(
+
+          [
+            `👤 **Membro:** ${member}`,
+            '',
+            `⏱️ **Jornada:** ${formatDurationMs(tempo)}`,
+            `📊 **Semana:** ${formatDurationMs(dados.semanal)}`,
+            `📚 **Total:** ${formatDurationMs(dados.total)}`,
+            '',
+            `🎯 **Meta de 7h:** ${meta ? '✅ CONCLUÍDA' : '⏳ EM ANDAMENTO'}`,
+            '',
+            `📌 **Motivo:** ${motivo}`
+          ].join('\n')
+
+        )
+
+        .setFooter({
+          text:
+            '🏴 Pavuna • Bate-Ponto'
+        })
+
+        .setTimestamp()
+
+    ],
+
+    ephemeral: true
+
+  });
+
+  await sendLog(
+    interaction.guild,
     [
-      '**GESTÃO DE EFETIVO**',
+      '🕐 **PONTO ENCERRADO**',
       '',
-      'Área destinada exclusivamente aos membros autorizados.',
-      '',
-      '**PROCEDIMENTOS DISPONÍVEIS**',
-      '',
-      '📈 **PROMOÇÃO**',
-      'Registro de evolução funcional.',
-      '',
-      '📉 **REBAIXAMENTO**',
-      'Registro de alteração funcional por medida administrativa.',
-      '',
-      '📄 **EXONERAÇÃO**',
-      'Remoção dos cargos operacionais, preservando os cargos definidos.',
-      '',
-      '⚫ **BLACKLIST**',
-      'Controle administrativo de acesso ao servidor.',
-      '',
-      '> **Todas as ações administrativas devem possuir justificativa adequada.**'
+      `👤 Membro: <@${member.id}>`,
+      `⏱️ Jornada: ${formatDurationMs(tempo)}`,
+      `📊 Semana: ${formatDurationMs(dados.semanal)}`,
+      `📚 Total: ${formatDurationMs(dados.total)}`,
+      `📌 Motivo: ${motivo}`
     ].join('\n')
   );
 }
 
-function adminPanelRows() {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('admin_promocao_info')
-        .setLabel('PROMOÇÃO')
-        .setEmoji('📈')
-        .setStyle(ButtonStyle.Secondary),
 
-      new ButtonBuilder()
-        .setCustomId('admin_rebaixamento_info')
-        .setLabel('REBAIXAMENTO')
-        .setEmoji('📉')
-        .setStyle(ButtonStyle.Secondary),
+/* =========================================================
+   RANKING
+========================================================= */
 
-      new ButtonBuilder()
-        .setCustomId('admin_exoneracao_info')
-        .setLabel('EXONERAÇÃO')
-        .setEmoji('📄')
-        .setStyle(ButtonStyle.Secondary),
+async function mostrarRanking(
+  interaction
+) {
 
-      new ButtonBuilder()
-        .setCustomId('admin_blacklist_info')
-        .setLabel('BLACKLIST')
-        .setEmoji('⚫')
-        .setStyle(ButtonStyle.Secondary)
+  if (
+    !hasAnyRole(
+      interaction.member,
+      CONFIG.adminRoles
     )
+  ) {
+
+    return interaction.reply({
+      content:
+        '❌ Você não possui um dos 3 cargos autorizados para visualizar o ranking.',
+      ephemeral: true
+    });
+  }
+
+  const lista = [];
+
+  for (
+    const [
+      userId,
+      dados
+    ]
+    of Object.entries(pontos)
+  ) {
+
+    garantirMembroPonto(
+      userId
+    );
+
+    let semanal =
+      dados.semanal || 0;
+
+    const ativo =
+      pontosAtivos.get(
+        userId
+      );
+
+    if (ativo) {
+
+      semanal +=
+        Date.now() -
+        ativo.inicio;
+    }
+
+    lista.push({
+
+      userId,
+
+      semanal,
+
+      total:
+        dados.total || 0
+
+    });
+  }
+
+  for (
+    const [
+      userId,
+      ativo
+    ]
+    of pontosAtivos
+  ) {
+
+    if (
+      lista.some(
+        item =>
+          item.userId ===
+          userId
+      )
+    ) {
+
+      continue;
+    }
+
+    const dados =
+      garantirMembroPonto(
+        userId
+      );
+
+    lista.push({
+
+      userId,
+
+      semanal:
+        dados.semanal +
+        (
+          Date.now() -
+          ativo.inicio
+        ),
+
+      total:
+        dados.total
+
+    });
+  }
+
+  lista.sort(
+    (a, b) =>
+      b.semanal -
+      a.semanal
+  );
+
+  const top =
+    lista.slice(
+      0,
+      20
+    );
+
+  if (
+    !top.length
+  ) {
+
+    return interaction.reply({
+
+      embeds: [
+
+        new EmbedBuilder()
+
+          .setColor(0xff9900)
+
+          .setTitle(
+            '🏆・RANKING DE BATE-PONTO'
+          )
+
+          .setDescription(
+            '📊 Ainda não existem registros de horas.'
+          )
+
+      ],
+
+      ephemeral: true
+
+    });
+  }
+
+  const linhas = [];
+
+  for (
+    let i = 0;
+    i < top.length;
+    i++
+  ) {
+
+    const item =
+      top[i];
+
+    const member =
+      await interaction.guild.members
+        .fetch(
+          item.userId
+        )
+        .catch(
+          () => null
+        );
+
+    const nome =
+      member
+        ? member.displayName
+        : `Usuário ${item.userId}`;
+
+    let posicao =
+      `${i + 1}º`;
+
+    if (i === 0)
+      posicao = '🥇';
+
+    if (i === 1)
+      posicao = '🥈';
+
+    if (i === 2)
+      posicao = '🥉';
+
+    const meta =
+      item.semanal >=
+      CONFIG.pontoMetaSemanalMs
+        ? '✅'
+        : '⏳';
+
+    linhas.push(
+
+      `${posicao} **${nome}**\n` +
+
+      `> ⏱️ Semana: **${formatDurationMs(item.semanal)}** ${meta}\n` +
+
+      `> 📚 Total: **${formatDurationMs(item.total)}**`
+
+    );
+  }
+
+  return interaction.reply({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0x8b0000)
+
+        .setTitle(
+          '🏆・RANKING DE BATE-PONTO'
+        )
+
+        .setDescription(
+
+          [
+            '📊 **Ranking semanal da Pavuna**',
+            '',
+            `🎯 **Meta:** ${formatDurationMs(CONFIG.pontoMetaSemanalMs)}`,
+            '',
+            linhas.join('\n\n')
+          ].join('\n')
+
+        )
+
+        .setFooter({
+          text:
+            '🏴 Pavuna • Ranking de Atividade'
+        })
+
+        .setTimestamp()
+
+    ],
+
+    ephemeral: true
+
+  });
+}
+
+
+/* =========================================================
+   VOICE STATE
+========================================================= */
+
+client.on(
+  'voiceStateUpdate',
+  async (
+    oldState,
+    newState
+  ) => {
+
+    try {
+
+      const userId =
+        oldState.id;
+
+      const ativo =
+        pontosAtivos.get(
+          userId
+        );
+
+      if (!ativo)
+        return;
+
+      const oldAllowed =
+        CONFIG.pontoVoiceChannels
+          .includes(
+            oldState.channelId
+          );
+
+      const newAllowed =
+        CONFIG.pontoVoiceChannels
+          .includes(
+            newState.channelId
+          );
+
+      if (
+        oldAllowed &&
+        newAllowed
+      ) {
+
+        ativo.channelId =
+          newState.channelId;
+
+        return;
+      }
+
+      if (
+        oldAllowed &&
+        !newAllowed
+      ) {
+
+        const tempo =
+          Date.now() -
+          ativo.inicio;
+
+        const dados =
+          garantirMembroPonto(
+            userId
+          );
+
+        dados.semanal +=
+          tempo;
+
+        dados.total +=
+          tempo;
+
+        pontosAtivos.delete(
+          userId
+        );
+
+        salvarPontos();
+
+        const meta =
+          dados.semanal >=
+          CONFIG.pontoMetaSemanalMs;
+
+        const member =
+          await newState.guild.members
+            .fetch(
+              userId
+            )
+            .catch(
+              () => null
+            );
+
+        if (member) {
+
+          try {
+
+            await member.send({
+
+              embeds: [
+
+                new EmbedBuilder()
+
+                  .setColor(
+                    meta
+                      ? 0x00cc66
+                      : 0xff9900
+                  )
+
+                  .setTitle(
+                    '🚪・PONTO ENCERRADO'
+                  )
+
+                  .setDescription(
+
+                    [
+                      'Você saiu de uma call autorizada.',
+                      '',
+                      `⏱️ **Jornada:** ${formatDurationMs(tempo)}`,
+                      `📊 **Semana:** ${formatDurationMs(dados.semanal)}`,
+                      `📚 **Total:** ${formatDurationMs(dados.total)}`,
+                      '',
+                      meta
+                        ? '🏆 Você atingiu a meta semanal!'
+                        : '⚠️ Seu ponto foi encerrado automaticamente.'
+                    ].join('\n')
+
+                  )
+
+                  .setFooter({
+                    text:
+                      '🏴 Pavuna • Bate-Ponto'
+                  })
+
+                  .setTimestamp()
+
+              ]
+
+            });
+
+          } catch {}
+        }
+
+        await sendLog(
+          newState.guild,
+          [
+            '🚪 **PONTO ENCERRADO AUTOMATICAMENTE**',
+            '',
+            `👤 Membro: <@${userId}>`,
+            `⏱️ Jornada: ${formatDurationMs(tempo)}`,
+            `📊 Semana: ${formatDurationMs(dados.semanal)}`,
+            `📌 Motivo: saiu da call autorizada.`
+          ].join('\n')
+        );
+      }
+
+    } catch (error) {
+
+      console.error(
+        '❌ Erro no voiceStateUpdate:',
+        error
+      );
+    }
+  }
+);
+
+
+/* =========================================================
+   EDITAL
+========================================================= */
+
+function startRow() {
+
+  return new ActionRowBuilder()
+
+    .addComponents(
+
+      new ButtonBuilder()
+        .setCustomId(
+          'iniciar_edital'
+        )
+        .setLabel(
+          'Iniciar Edital'
+        )
+        .setEmoji('▶️')
+        .setStyle(
+          ButtonStyle.Success
+        ),
+
+      new ButtonBuilder()
+        .setCustomId(
+          'fechar_edital'
+        )
+        .setLabel(
+          'Fechar'
+        )
+        .setEmoji('🔒')
+        .setStyle(
+          ButtonStyle.Danger
+        )
+
+    );
+}
+
+
+function answerButtons(
+  questionNumber
+) {
+
+  return new ActionRowBuilder()
+
+    .addComponents(
+
+      ['A', 'B', 'C', 'D']
+        .map(
+          letter =>
+
+            new ButtonBuilder()
+
+              .setCustomId(
+                `edital_${questionNumber}_${letter}`
+              )
+
+              .setLabel(
+                letter
+              )
+
+              .setStyle(
+                ButtonStyle.Primary
+              )
+        )
+
+    );
+}
+
+
+function questionEmbed(
+  q,
+  startedAt,
+  deadline
+) {
+
+  const embed =
+    new EmbedBuilder()
+
+      .setColor(0x8b0000)
+
+      .setTitle(
+        `📋・EDITAL PAVUNA • PERGUNTA ${String(q.n).padStart(2, '0')}/11`
+      )
+
+      .setDescription(
+
+        [
+          `### ❓ ${q.text}`,
+          '',
+          `⏱️ **Tempo:** ${formatDuration(q.minutes)}`,
+          `🟢 **Início:** ${formatTime(startedAt)}`,
+          `🔴 **Término:** ${formatTime(deadline)}`
+        ].join('\n')
+
+      )
+
+      .setFooter({
+        text:
+          '🏴 Pavuna • Processo Seletivo'
+      });
+
+  if (
+    q.options
+  ) {
+
+    embed.addFields({
+
+      name:
+        '🎯 Escolha uma alternativa',
+
+      value:
+
+        `🅰️ **A)** ${q.options[0]}\n` +
+        `🅱️ **B)** ${q.options[1]}\n` +
+        `©️ **C)** ${q.options[2]}\n` +
+        `🇩 **D)** ${q.options[3]}`
+
+    });
+  }
+
+  return embed;
+}
+
+
+/* =========================================================
+   FECHAMENTO DE CANAL
+========================================================= */
+
+function deleteAfter(
+  channel,
+  reason
+) {
+
+  setTimeout(
+    () => {
+
+      channel
+        .delete(reason)
+        .catch(
+          () => {}
+        );
+
+    },
+    CONFIG.closeAfterMs
+  );
+}
+
+
+async function closeChannel(
+  channel,
+  reason
+) {
+
+  await channel.send({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0x8b0000)
+
+        .setTitle(
+          '🔒・EDITAL ENCERRADO'
+        )
+
+        .setDescription(
+          'Este canal será excluído automaticamente em **5 segundos**.'
+        )
+
+        .setFooter({
+          text:
+            reason
+        })
+
+    ]
+
+  }).catch(
+    () => {}
+  );
+
+  deleteAfter(
+    channel,
+    reason
+  );
+}
+
+
+/* =========================================================
+   CRIAR CANAL DO EDITAL
+========================================================= */
+
+async function createEditalChannel(
+  interaction
+) {
+
+  const guild =
+    interaction.guild;
+
+  const member =
+    interaction.member;
+
+  if (
+    !guild ||
+    !member
+  ) {
+
+    return interaction.reply({
+      content:
+        '❌ Não foi possível iniciar o edital.',
+      ephemeral: true
+    });
+  }
+
+  if (
+    sessions.has(
+      member.id
+    )
+  ) {
+
+    const session =
+      sessions.get(
+        member.id
+      );
+
+    return interaction.reply({
+
+      content:
+        `❌ Você já possui um edital em andamento.\n\n📋 Canal: <#${session.channelId}>`,
+
+      ephemeral: true
+
+    });
+  }
+
+  const botMember =
+    guild.members.me;
+
+  if (!botMember) {
+
+    return interaction.reply({
+      content:
+        '❌ Não consegui verificar as permissões do bot.',
+      ephemeral: true
+    });
+  }
+
+  const overwrites = [
+
+    {
+      id:
+        guild.roles.everyone.id,
+
+      deny: [
+        PermissionFlagsBits.ViewChannel
+      ]
+    },
+
+    ...CONFIG.editalAccessRoles
+      .map(
+        roleId => ({
+
+          id:
+            roleId,
+
+          allow: [
+
+            PermissionFlagsBits.ViewChannel,
+
+            PermissionFlagsBits.SendMessages,
+
+            PermissionFlagsBits.ReadMessageHistory
+
+          ]
+
+        })
+      ),
+
+    {
+      id:
+        member.id,
+
+      allow: [
+
+        PermissionFlagsBits.ViewChannel,
+
+        PermissionFlagsBits.SendMessages,
+
+        PermissionFlagsBits.ReadMessageHistory
+
+      ]
+    },
+
+    {
+      id:
+        botMember.id,
+
+      allow: [
+
+        PermissionFlagsBits.ViewChannel,
+
+        PermissionFlagsBits.SendMessages,
+
+        PermissionFlagsBits.ReadMessageHistory,
+
+        PermissionFlagsBits.ManageChannels
+
+      ]
+    }
+
+  ];
+
+  const safeName =
+    member.user.username
+
+      .toLowerCase()
+
+      .replace(
+        /[^a-z0-9-]/g,
+        '-'
+      )
+
+      .slice(
+        0,
+        60
+      );
+
+  let channel;
+
+  try {
+
+    channel =
+      await guild.channels.create({
+
+        name:
+          `edital-${safeName}`,
+
+        type:
+          ChannelType.GuildText,
+
+        parent:
+          CONFIG.editalCategoryId ||
+          undefined,
+
+        permissionOverwrites:
+          overwrites,
+
+        reason:
+          `Edital iniciado por ${member.user.tag}`
+
+      });
+
+  } catch (error) {
+
+    console.error(
+      '❌ Erro ao criar canal:',
+      error
+    );
+
+    return interaction.reply({
+      content:
+        '❌ Não consegui criar o canal do edital. Verifique as permissões do bot.',
+      ephemeral: true
+    });
+  }
+
+  sessions.set(
+    member.id,
+    {
+
+      channelId:
+        channel.id,
+
+      candidateId:
+        member.id,
+
+      started:
+        false,
+
+      answers: [],
+
+      objectiveCorrect:
+        0,
+
+      currentQuestion:
+        0
+
+    }
+  );
+
+  await channel.send({
+
+    content:
+      `${member}`,
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0x8b0000)
+
+        .setTitle(
+          '📋・EDITAL PAVUNA'
+        )
+
+        .setDescription(
+
+          [
+            `👋 Olá, ${member}!`,
+            '',
+            'Seu canal privado de recrutamento foi criado.',
+            '',
+            '### ⚠️ ANTES DE COMEÇAR',
+            '',
+            '📖 Leia todas as perguntas com atenção.',
+            '⏱️ O cronômetro começa ao clicar em **Iniciar Edital**.',
+            '⌛ Cada pergunta possui seu próprio tempo.',
+            '🚫 Se o tempo acabar, o processo será encerrado.',
+            '✍️ Questões **1–5 e 11** são discursivas.',
+            '🎯 Questões **6–10** possuem alternativas.',
+            '🏆 É necessário acertar as **5 questões objetivas**.',
+            '',
+            'Clique em **▶️ Iniciar Edital** quando estiver pronto.',
+            '',
+            '🍀 **Boa sorte!**'
+          ].join('\n')
+
+        )
+
+        .setFooter({
+          text:
+            '🏴 Pavuna • Sistema de Recrutamento'
+        })
+
+        .setTimestamp()
+
+    ],
+
+    components: [
+      startRow()
+    ]
+
+  });
+
+  await interaction.reply({
+
+    content:
+      `✅ **Edital criado com sucesso!**\n\n📋 ${channel}`,
+
+    ephemeral: true
+
+  });
+}
+
+
+/* =========================================================
+   REPROVAR POR TEMPO
+========================================================= */
+
+async function rejectByTimeout(
+  channel,
+  member,
+  questionNumber
+) {
+
+  await channel.send({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0xff0000)
+
+        .setTitle(
+          '⏰・TEMPO ESGOTADO'
+        )
+
+        .setDescription(
+
+          [
+            `O tempo da **pergunta ${questionNumber}/11** acabou.`,
+            '',
+            '❌ **Edital reprovado.**',
+            '',
+            '📚 Estude as regras e tente novamente em outro momento.'
+          ].join('\n')
+
+        )
+
+        .setFooter({
+          text:
+            '🏴 Pavuna • Processo Seletivo'
+        })
+
+    ]
+
+  }).catch(
+    () => {}
+  );
+
+  await sendLog(
+
+    channel.guild,
+
+    [
+      '📕 **EDITAL REPROVADO**',
+      '',
+      `👤 Membro: <@${member.id}>`,
+      `❌ Motivo: tempo esgotado na questão ${questionNumber}/11.`
+    ].join('\n')
+
+  );
+
+  sessions.delete(
+    member.id
+  );
+
+  deleteAfter(
+    channel,
+    'Edital reprovado por tempo'
+  );
+}
+
+
+/* =========================================================
+   EXECUTAR EDITAL
+========================================================= */
+
+async function runEdital(
+  channel,
+  member
+) {
+
+  const session =
+    sessions.get(
+      member.id
+    );
+
+  if (!session)
+    return;
+
+  if (
+    session.started
+  )
+    return;
+
+  session.started =
+    true;
+
+  await channel.send({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0x00aa55)
+
+        .setTitle(
+          '🚀・EDITAL INICIADO'
+        )
+
+        .setDescription(
+          [
+            'O processo seletivo começou!',
+            '',
+            '⏱️ Responda cada pergunta dentro do tempo indicado.',
+            '🍀 Boa sorte!'
+          ].join('\n')
+        )
+
+    ]
+
+  });
+
+  for (
+    const q of QUESTIONS
+  ) {
+
+    if (
+      !sessions.has(
+        member.id
+      )
+    )
+      return;
+
+    session.currentQuestion =
+      q.n;
+
+    const startedAt =
+      new Date();
+
+    const deadline =
+      new Date(
+        startedAt.getTime() +
+        q.minutes *
+        60 *
+        1000
+      );
+
+    /* =====================================================
+       QUESTÃO OBJETIVA
+    ===================================================== */
+
+    if (
+      q.options
+    ) {
+
+      const questionMessage =
+        await channel.send({
+
+          embeds: [
+
+            questionEmbed(
+              q,
+              startedAt,
+              deadline
+            )
+
+          ],
+
+          components: [
+
+            answerButtons(
+              q.n
+            )
+
+          ]
+
+        });
+
+      const collected =
+        await questionMessage
+          .awaitMessageComponent({
+
+            filter:
+              buttonInteraction =>
+
+                buttonInteraction.user.id ===
+                  member.id &&
+
+                buttonInteraction.customId
+                  .startsWith(
+                    `edital_${q.n}_`
+                  ),
+
+            time:
+              q.minutes *
+              60 *
+              1000
+
+          })
+
+          .catch(
+            () => null
+          );
+
+      if (!collected) {
+
+        await questionMessage
+          .delete()
+          .catch(
+            () => {}
+          );
+
+        await rejectByTimeout(
+          channel,
+          member,
+          q.n
+        );
+
+        return;
+      }
+
+      const answer =
+        collected.customId
+          .split('_')
+          .pop();
+
+      session.answers.push({
+
+        question:
+          q.n,
+
+        answer
+
+      });
+
+      if (
+        answer ===
+        q.answer
+      ) {
+
+        session.objectiveCorrect++;
+      }
+
+      await collected
+        .deferUpdate()
+        .catch(
+          () => {}
+        );
+
+      await questionMessage
+        .delete()
+        .catch(
+          () => {}
+        );
+
+      continue;
+    }
+
+    /* =====================================================
+       QUESTÃO DISCURSIVA
+    ===================================================== */
+
+    const questionMessage =
+      await channel.send({
+
+        embeds: [
+
+          questionEmbed(
+            q,
+            startedAt,
+            deadline
+          )
+
+        ],
+
+        content:
+          '✍️ **Digite sua resposta abaixo:**'
+
+      });
+
+    const collected =
+      await channel.awaitMessages({
+
+        filter:
+          message =>
+
+            message.author.id ===
+              member.id &&
+
+            !message.author.bot,
+
+        max:
+          1,
+
+        time:
+          q.minutes *
+          60 *
+          1000
+
+      }).catch(
+        () => null
+      );
+
+    if (
+      !collected ||
+      collected.size === 0
+    ) {
+
+      await questionMessage
+        .delete()
+        .catch(
+          () => {}
+        );
+
+      await rejectByTimeout(
+        channel,
+        member,
+        q.n
+      );
+
+      return;
+    }
+
+    const answerMessage =
+      collected.first();
+
+    session.answers.push({
+
+      question:
+        q.n,
+
+      answer:
+        answerMessage.content.trim()
+
+    });
+
+    await answerMessage
+      .delete()
+      .catch(
+        () => {}
+      );
+
+    await questionMessage
+      .delete()
+      .catch(
+        () => {}
+      );
+  }
+
+  await finishEdital(
+    channel,
+    member,
+    session
+  );
+}
+
+
+/* =========================================================
+   FINALIZAR EDITAL
+========================================================= */
+
+async function finishEdital(
+  channel,
+  member,
+  session
+) {
+
+  const approved =
+    session.objectiveCorrect === 5;
+
+  if (
+    approved
+  ) {
+
+    const roleResults = [];
+
+    for (
+      const roleId of
+      CONFIG.approvedRoles
+    ) {
+
+      const role =
+        channel.guild.roles.cache.get(
+          roleId
+        );
+
+      if (!role)
+        continue;
+
+      const botMember =
+        channel.guild.members.me;
+
+      if (
+        !botMember ||
+        role.position >=
+        botMember.roles.highest.position
+      ) {
+
+        console.warn(
+          `⚠️ Cargo ${roleId} está acima do bot.`
+        );
+
+        continue;
+      }
+
+      try {
+
+        await member.roles.add(
+          role,
+          'Aprovado no edital Pavuna'
+        );
+
+        roleResults.push(
+          role.name
+        );
+
+      } catch (error) {
+
+        console.error(
+          `Erro ao adicionar cargo ${roleId}:`,
+          error
+        );
+      }
+    }
+
+    await channel.send({
+
+      embeds: [
+
+        new EmbedBuilder()
+
+          .setColor(0x00cc66)
+
+          .setTitle(
+            '🎉・EDITAL APROVADO!'
+          )
+
+          .setDescription(
+
+            [
+              `🏴 Parabéns, ${member}!`,
+              '',
+              'Você foi **aprovado** no processo seletivo da **Pavuna**.',
+              '',
+              `📊 **Questões objetivas:** ${session.objectiveCorrect}/5`,
+              '',
+              '🏅 **Cargos atribuídos:**',
+
+              roleResults.length
+
+                ? roleResults
+                    .map(
+                      role =>
+                        `> 🏷️ **${role}**`
+                    )
+                    .join('\n')
+
+                : '> ⚠️ Nenhum cargo pôde ser atribuído.',
+
+              '',
+              '━━━━━━━━━━━━━━━━━━━━',
+              '',
+              '🏴 **BEM-VINDO À PAVUNA!**'
+
+            ].join('\n')
+
+          )
+
+          .setFooter({
+            text:
+              '🏴 Pavuna • Recrutamento'
+          })
+
+          .setTimestamp()
+
+      ]
+
+    });
+
+    await sendLog(
+
+      channel.guild,
+
+      [
+        '🎉 **EDITAL APROVADO**',
+        '',
+        `👤 Membro: <@${member.id}>`,
+        `📊 Resultado: ${session.objectiveCorrect}/5`,
+        `🏅 Cargos atribuídos: ${roleResults.length}`
+      ].join('\n')
+
+    );
+
+  } else {
+
+    await channel.send({
+
+      embeds: [
+
+        new EmbedBuilder()
+
+          .setColor(0xff3333)
+
+          .setTitle(
+            '📕・EDITAL REPROVADO'
+          )
+
+          .setDescription(
+
+            [
+              `😕 Infelizmente, ${member}, você não atingiu a pontuação necessária.`,
+              '',
+              `📊 **Questões objetivas:** ${session.objectiveCorrect}/5`,
+              '',
+              '🎯 É necessário acertar as **5 questões objetivas**.',
+              '',
+              '📚 Estude as regras do servidor e do RP.',
+              '',
+              '🔄 Tente novamente em outro momento.',
+              '',
+              '🍀 **Boa sorte na próxima tentativa!**'
+            ].join('\n')
+
+          )
+
+          .setFooter({
+            text:
+              '🏴 Pavuna • Recrutamento'
+          })
+
+          .setTimestamp()
+
+      ]
+
+    });
+
+    await sendLog(
+
+      channel.guild,
+
+      [
+        '📕 **EDITAL REPROVADO**',
+        '',
+        `👤 Membro: <@${member.id}>`,
+        `📊 Resultado: ${session.objectiveCorrect}/5`
+      ].join('\n')
+
+    );
+  }
+
+  sessions.delete(
+    member.id
+  );
+
+  deleteAfter(
+    channel,
+    'Edital finalizado'
+  );
+}
+
+
+/* =========================================================
+   VALIDAÇÃO DE PROMOÇÃO / REBAIXAMENTO
+========================================================= */
+
+function validarAlteracaoCargo(
+  interaction,
+  target,
+  oldRole,
+  newRole
+) {
+
+  if (!target)
+    return '❌ Não encontrei esse membro no servidor.';
+
+  if (!oldRole || !newRole)
+    return '❌ Um dos cargos informados é inválido.';
+
+  if (
+    target.id ===
+    interaction.user.id
+  ) {
+
+    return '❌ Você não pode alterar seu próprio cargo.';
+  }
+
+  if (
+    oldRole.id ===
+    newRole.id
+  ) {
+
+    return '❌ O cargo antigo e o novo cargo não podem ser iguais.';
+  }
+
+  if (
+    !target.roles.cache.has(
+      oldRole.id
+    )
+  ) {
+
+    return `❌ O membro não possui o cargo ${oldRole}.`;
+  }
+
+  if (
+    oldRole.managed ||
+    newRole.managed
+  ) {
+
+    return '❌ Cargos gerenciados pelo Discord não podem ser utilizados.';
+  }
+
+  const botMember =
+    interaction.guild.members.me;
+
+  if (!botMember)
+    return '❌ Não consegui verificar a hierarquia do bot.';
+
+  if (
+    oldRole.position >=
+    botMember.roles.highest.position
+  ) {
+
+    return '❌ O cargo antigo está acima ou no mesmo nível do bot.';
+  }
+
+  if (
+    newRole.position >=
+    botMember.roles.highest.position
+  ) {
+
+    return '❌ O novo cargo está acima ou no mesmo nível do bot.';
+  }
+
+  if (
+    target.roles.highest.position >=
+    botMember.roles.highest.position
+  ) {
+
+    return '❌ O bot não possui hierarquia suficiente para alterar este membro.';
+  }
+
+  return null;
+}
+
+
+/* =========================================================
+   EXECUTAR PROMOÇÃO / REBAIXAMENTO
+========================================================= */
+
+async function executarAlteracaoCargo(
+  interaction,
+  tipo,
+  target,
+  oldRole,
+  newRole,
+  motivo
+) {
+
+  const erro =
+    validarAlteracaoCargo(
+      interaction,
+      target,
+      oldRole,
+      newRole
+    );
+
+  if (erro) {
+
+    return interaction.reply({
+      content:
+        erro,
+      ephemeral: true
+    });
+  }
+
+  if (
+    !motivo ||
+    !motivo.trim()
+  ) {
+
+    return interaction.reply({
+      content:
+        '❌ O motivo é obrigatório.',
+      ephemeral: true
+    });
+  }
+
+  try {
+
+    await target.roles.remove(
+
+      oldRole,
+
+      `${tipo} por ${interaction.user.tag}: ${motivo}`
+
+    );
+
+    await target.roles.add(
+
+      newRole,
+
+      `${tipo} por ${interaction.user.tag}: ${motivo}`
+
+    );
+
+  } catch (error) {
+
+    console.error(
+      `❌ Erro na ${tipo}:`,
+      error
+    );
+
+    return interaction.reply({
+      content:
+        '❌ Não foi possível alterar os cargos. Verifique a hierarquia do bot.',
+      ephemeral: true
+    });
+  }
+
+  const isPromocao =
+    tipo === 'Promoção';
+
+  await interaction.reply({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(
+          isPromocao
+            ? 0x00aaff
+            : 0xff9900
+        )
+
+        .setTitle(
+
+          isPromocao
+            ? '📈・PROMOÇÃO REGISTRADA'
+            : '📉・REBAIXAMENTO REGISTRADO'
+
+        )
+
+        .setDescription(
+
+          [
+            `👤 **Membro:** ${target}`,
+            `👑 **Responsável:** ${interaction.member}`,
+            '',
+            `📋 **Cargo anterior:** ${oldRole}`,
+            `🏷️ **Novo cargo:** ${newRole}`,
+            '',
+            `📝 **Motivo:** ${motivo}`,
+            '',
+            isPromocao
+              ? '🎉 **Promoção registrada com sucesso!**'
+              : '⚠️ **Rebaixamento registrado com sucesso.**'
+          ].join('\n')
+
+        )
+
+        .setFooter({
+          text:
+            '🏴 Pavuna • Administração'
+        })
+
+        .setTimestamp()
+
+    ]
+
+  });
+
+  await sendLog(
+
+    interaction.guild,
+
+    [
+      isPromocao
+        ? '📈 **PROMOÇÃO**'
+        : '📉 **REBAIXAMENTO**',
+
+      '',
+
+      `👑 Responsável: <@${interaction.user.id}>`,
+
+      `👤 Membro: <@${target.id}>`,
+
+      `📋 Antigo: <@&${oldRole.id}>`,
+
+      `🏷️ Novo: <@&${newRole.id}>`,
+
+      `📝 Motivo: ${motivo}`
+
+    ].join('\n')
+
+  );
+}
+
+
+/* =========================================================
+   COMANDOS
+========================================================= */
+
+function commandBuilders() {
+
+  return [
+
+    /* =====================================================
+       PAINEL
+    ===================================================== */
+
+    new SlashCommandBuilder()
+
+      .setName(
+        'painel'
+      )
+
+      .setDescription(
+        '🏴 Gerencia os painéis da Pavuna'
+      )
+
+      .setDMPermission(false)
+
+      .addSubcommand(
+        sub =>
+          sub
+
+            .setName(
+              'edital'
+            )
+
+            .setDescription(
+              '📜 Envia o painel de recrutamento'
+            )
+      )
+
+      .addSubcommand(
+        sub =>
+          sub
+
+            .setName(
+              'registrar'
+            )
+
+            .setDescription(
+              '📝 Envia o painel de registro'
+            )
+      )
+
+      .addSubcommand(
+        sub =>
+          sub
+
+            .setName(
+              'ponto'
+            )
+
+            .setDescription(
+              '🕐 Envia o painel de bate-ponto'
+            )
+      )
+
+      .addSubcommand(
+        sub =>
+          sub
+
+            .setName(
+              'promocao'
+            )
+
+            .setDescription(
+              '📈 Promove um membro'
+            )
+
+            .addUserOption(
+              option =>
+                option
+
+                  .setName(
+                    'membro'
+                  )
+
+                  .setDescription(
+                    '👤 Membro'
+                  )
+
+                  .setRequired(true)
+            )
+
+            .addRoleOption(
+              option =>
+                option
+
+                  .setName(
+                    'cargo_antigo'
+                  )
+
+                  .setDescription(
+                    '📉 Cargo antigo'
+                  )
+
+                  .setRequired(true)
+            )
+
+            .addRoleOption(
+              option =>
+                option
+
+                  .setName(
+                    'novo_cargo'
+                  )
+
+                  .setDescription(
+                    '📈 Novo cargo'
+                  )
+
+                  .setRequired(true)
+            )
+
+            .addStringOption(
+              option =>
+                option
+
+                  .setName(
+                    'motivo'
+                  )
+
+                  .setDescription(
+                    '📝 Motivo'
+                  )
+
+                  .setRequired(true)
+            )
+      )
+
+      .addSubcommand(
+        sub =>
+          sub
+
+            .setName(
+              'rebaixamento'
+            )
+
+            .setDescription(
+              '📉 Rebaixa um membro'
+            )
+
+            .addUserOption(
+              option =>
+                option
+
+                  .setName(
+                    'membro'
+                  )
+
+                  .setDescription(
+                    '👤 Membro'
+                  )
+
+                  .setRequired(true)
+            )
+
+            .addRoleOption(
+              option =>
+                option
+
+                  .setName(
+                    'cargo_antigo'
+                  )
+
+                  .setDescription(
+                    '📈 Cargo antigo'
+                  )
+
+                  .setRequired(true)
+            )
+
+            .addRoleOption(
+              option =>
+                option
+
+                  .setName(
+                    'novo_cargo'
+                  )
+
+                  .setDescription(
+                    '📉 Novo cargo'
+                  )
+
+                  .setRequired(true)
+            )
+
+            .addStringOption(
+              option =>
+                option
+
+                  .setName(
+                    'motivo'
+                  )
+
+                  .setDescription(
+                    '📝 Motivo'
+                  )
+
+                  .setRequired(true)
+            )
+      )
+
+      .toJSON(),
+
+
+    /* =====================================================
+       EXONERAÇÃO
+    ===================================================== */
+
+    new SlashCommandBuilder()
+
+      .setName(
+        'exoneracao'
+      )
+
+      .setDescription(
+        '📤 Exonera um membro'
+      )
+
+      .setDMPermission(false)
+
+      .addUserOption(
+        option =>
+          option
+
+            .setName(
+              'membro'
+            )
+
+            .setDescription(
+              '👤 Membro'
+            )
+
+            .setRequired(true)
+      )
+
+      .addStringOption(
+        option =>
+          option
+
+            .setName(
+              'motivo'
+            )
+
+            .setDescription(
+              '📝 Motivo da exoneração'
+            )
+
+            .setRequired(true)
+      )
+
+      .toJSON(),
+
+
+    /* =====================================================
+       PROMOÇÃO
+    ===================================================== */
+
+    new SlashCommandBuilder()
+
+      .setName(
+        'promocao'
+      )
+
+      .setDescription(
+        '📈 Promove um membro'
+      )
+
+      .setDMPermission(false)
+
+      .addUserOption(
+        option =>
+          option
+
+            .setName(
+              'membro'
+            )
+
+            .setDescription(
+              '👤 Membro'
+            )
+
+            .setRequired(true)
+      )
+
+      .addRoleOption(
+        option =>
+          option
+
+            .setName(
+              'cargo_antigo'
+            )
+
+            .setDescription(
+              '📉 Cargo antigo'
+            )
+
+            .setRequired(true)
+      )
+
+      .addRoleOption(
+        option =>
+          option
+
+            .setName(
+              'novo_cargo'
+            )
+
+            .setDescription(
+              '📈 Novo cargo'
+            )
+
+            .setRequired(true)
+      )
+
+      .addStringOption(
+        option =>
+          option
+
+            .setName(
+              'motivo'
+            )
+
+            .setDescription(
+              '📝 Motivo da promoção'
+            )
+
+            .setRequired(true)
+      )
+
+      .toJSON(),
+
+
+    /* =====================================================
+       REBAIXAMENTO
+    ===================================================== */
+
+    new SlashCommandBuilder()
+
+      .setName(
+        'rebaixamento'
+      )
+
+      .setDescription(
+        '📉 Rebaixa um membro'
+      )
+
+      .setDMPermission(false)
+
+      .addUserOption(
+        option =>
+          option
+
+            .setName(
+              'membro'
+            )
+
+            .setDescription(
+              '👤 Membro'
+            )
+
+            .setRequired(true)
+      )
+
+      .addRoleOption(
+        option =>
+          option
+
+            .setName(
+              'cargo_antigo'
+            )
+
+            .setDescription(
+              '📈 Cargo antigo'
+            )
+
+            .setRequired(true)
+      )
+
+      .addRoleOption(
+        option =>
+          option
+
+            .setName(
+              'novo_cargo'
+            )
+
+            .setDescription(
+              '📉 Novo cargo'
+            )
+
+            .setRequired(true)
+      )
+
+      .addStringOption(
+        option =>
+          option
+
+            .setName(
+              'motivo'
+            )
+
+            .setDescription(
+              '📝 Motivo do rebaixamento'
+            )
+
+            .setRequired(true)
+      )
+
+      .toJSON(),
+
+
+    /* =====================================================
+       BLACKLIST
+    ===================================================== */
+
+    new SlashCommandBuilder()
+
+      .setName(
+        'blacklist'
+      )
+
+      .setDescription(
+        '⛔ Adiciona ou remove um usuário da blacklist'
+      )
+
+      .setDMPermission(false)
+
+      .addUserOption(
+        option =>
+          option
+
+            .setName(
+              'membro'
+            )
+
+            .setDescription(
+              '👤 Usuário'
+            )
+
+            .setRequired(true)
+      )
+
+      .toJSON()
+
   ];
 }
 
+
 /* =========================================================
-   29 — MODAIS ADMINISTRATIVOS
+   READY
 ========================================================= */
 
-function adminProcedureModal(type) {
-  const titles = {
-    promocao: 'Registrar Promoção',
-    rebaixamento: 'Registrar Rebaixamento',
-    exoneracao: 'Registrar Exoneração',
-    blacklist: 'Registrar Blacklist'
-  };
+client.once(
+  'ready',
+  async () => {
 
-  const modal =
-    new ModalBuilder()
-      .setCustomId(`admin_modal:${type}`)
-      .setTitle(
-        titles[type] || 'Procedimento Administrativo'
+    console.log(
+      '=========================================='
+    );
+
+    console.log(
+      `✅ Pavuna conectado como ${client.user.tag}`
+    );
+
+    console.log(
+      `🕐 Bate-ponto carregado`
+    );
+
+    console.log(
+      `🎙️ Calls autorizadas: ${CONFIG.pontoVoiceChannels.length}`
+    );
+
+    console.log(
+      '👑 Cargos administrativos:'
+    );
+
+    CONFIG.adminRoles.forEach(
+      roleId =>
+        console.log(
+          `   • ${roleId}`
+        )
+    );
+
+    console.log(
+      '=========================================='
+    );
+
+    const rest =
+      new REST({
+        version: '10'
+      }).setToken(
+        process.env.DISCORD_TOKEN
       );
 
-  const member = new TextInputBuilder()
-    .setCustomId('member_id')
-    .setLabel('ID do membro')
-    .setPlaceholder('ID do Discord')
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMaxLength(25);
+    const commands =
+      commandBuilders();
 
-  const reason = new TextInputBuilder()
-    .setCustomId('reason')
-    .setLabel('Motivo')
-    .setPlaceholder('Descreva o motivo da ação')
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
-    .setMaxLength(1000);
+    try {
 
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(member),
-    new ActionRowBuilder().addComponents(reason)
+      if (
+        process.env.GUILD_ID
+      ) {
+
+        await rest.put(
+
+          Routes.applicationGuildCommands(
+
+            client.user.id,
+
+            process.env.GUILD_ID
+
+          ),
+
+          {
+            body:
+              commands
+          }
+
+        );
+
+        console.log(
+          '✅ Comandos registrados no servidor.'
+        );
+
+      } else {
+
+        await rest.put(
+
+          Routes.applicationCommands(
+            client.user.id
+          ),
+
+          {
+            body:
+              commands
+          }
+
+        );
+
+        console.log(
+          '✅ Comandos globais registrados.'
+        );
+      }
+
+    } catch (error) {
+
+      console.error(
+        '❌ Erro ao registrar comandos:',
+        error
+      );
+    }
+  }
+);
+
+
+/* =========================================================
+   INTERAÇÕES
+========================================================= */
+
+client.on(
+  'interactionCreate',
+  async interaction => {
+
+    try {
+
+      /* ===================================================
+         SLASH COMMANDS
+      =================================================== */
+
+      if (
+        interaction.isChatInputCommand()
+      ) {
+
+        /* =================================================
+           PAINEL
+        ================================================= */
+
+        if (
+          interaction.commandName ===
+          'painel'
+        ) {
+
+          if (
+            !await requireAdmin(
+              interaction
+            )
+          )
+            return;
+
+          const tipo =
+            interaction.options
+              .getSubcommand();
+
+          /* -----------------------------------------------
+             EDITAL
+          ----------------------------------------------- */
+
+          if (
+            tipo ===
+            'edital'
+          ) {
+
+            await interaction.channel.send({
+
+              embeds: [
+                panelEmbed()
+              ],
+
+              components: [
+                panelRow()
+              ]
+
+            });
+
+            return interaction.reply({
+
+              content:
+                '✅ **Painel de edital enviado!**',
+
+              ephemeral: true
+
+            });
+          }
+
+
+          /* -----------------------------------------------
+             REGISTRO
+          ----------------------------------------------- */
+
+          if (
+            tipo ===
+            'registrar'
+          ) {
+
+            await interaction.channel.send({
+
+              embeds: [
+                registrarEmbed()
+              ],
+
+              components: [
+                registrarRow()
+              ]
+
+            });
+
+            return interaction.reply({
+
+              content:
+                '✅ **Painel de registro enviado!**',
+
+              ephemeral: true
+
+            });
+          }
+
+
+          /* -----------------------------------------------
+             PONTO
+          ----------------------------------------------- */
+
+          if (
+            tipo ===
+            'ponto'
+          ) {
+
+            await interaction.channel.send({
+
+              embeds: [
+                pontoPainelEmbed()
+              ],
+
+              components: [
+                pontoPainelRow()
+              ]
+
+            });
+
+            return interaction.reply({
+
+              content:
+                '🕐 **Painel de bate-ponto enviado!**',
+
+              ephemeral: true
+
+            });
+          }
+
+
+          /* -----------------------------------------------
+             PROMOÇÃO
+          ----------------------------------------------- */
+
+          if (
+            tipo ===
+            'promocao'
+          ) {
+
+            const target =
+              interaction.options
+                .getMember(
+                  'membro'
+                );
+
+            const oldRole =
+              interaction.options
+                .getRole(
+                  'cargo_antigo'
+                );
+
+            const newRole =
+              interaction.options
+                .getRole(
+                  'novo_cargo'
+                );
+
+            const motivo =
+              interaction.options
+                .getString(
+                  'motivo'
+                );
+
+            return executarAlteracaoCargo(
+
+              interaction,
+
+              'Promoção',
+
+              target,
+
+              oldRole,
+
+              newRole,
+
+              motivo
+
+            );
+          }
+
+
+          /* -----------------------------------------------
+             REBAIXAMENTO
+          ----------------------------------------------- */
+
+          if (
+            tipo ===
+            'rebaixamento'
+          ) {
+
+            const target =
+              interaction.options
+                .getMember(
+                  'membro'
+                );
+
+            const oldRole =
+              interaction.options
+                .getRole(
+                  'cargo_antigo'
+                );
+
+            const newRole =
+              interaction.options
+                .getRole(
+                  'novo_cargo'
+                );
+
+            const motivo =
+              interaction.options
+                .getString(
+                  'motivo'
+                );
+
+            return executarAlteracaoCargo(
+
+              interaction,
+
+              'Rebaixamento',
+
+              target,
+
+              oldRole,
+
+              newRole,
+
+              motivo
+
+            );
+          }
+        }
+
+
+        /* =================================================
+           EXONERAÇÃO
+        ================================================= */
+
+        if (
+          interaction.commandName ===
+          'exoneracao'
+        ) {
+
+          if (
+            !await requireAdmin(
+              interaction
+            )
+          )
+            return;
+
+          const target =
+            interaction.options
+              .getMember(
+                'membro'
+              );
+
+          const motivo =
+            interaction.options
+              .getString(
+                'motivo'
+              );
+
+          if (!target) {
+
+            return interaction.reply({
+              content:
+                '❌ Não encontrei esse membro.',
+              ephemeral: true
+            });
+          }
+
+          if (
+            target.id ===
+            interaction.user.id
+          ) {
+
+            return interaction.reply({
+              content:
+                '❌ Você não pode se exonerar.',
+              ephemeral: true
+            });
+          }
+
+          if (
+            target.id ===
+            interaction.guild.ownerId
+          ) {
+
+            return interaction.reply({
+              content:
+                '❌ O dono do servidor não pode ser exonerado pelo bot.',
+              ephemeral: true
+            });
+          }
+
+          const botMember =
+            interaction.guild.members.me;
+
+          if (!botMember) {
+
+            return interaction.reply({
+              content:
+                '❌ Não consegui verificar a hierarquia.',
+              ephemeral: true
+            });
+          }
+
+          const removed = [];
+
+          for (
+            const role
+            of target.roles.cache.values()
+          ) {
+
+            if (
+              role.id ===
+              interaction.guild.id
+            )
+              continue;
+
+            if (
+              CONFIG.exoneracaoKeepRoles
+                .includes(
+                  role.id
+                )
+            )
+              continue;
+
+            if (
+              role.managed
+            )
+              continue;
+
+            if (
+              role.position >=
+              botMember.roles.highest.position
+            )
+              continue;
+
+            try {
+
+              await target.roles.remove(
+
+                role,
+
+                `Exoneração por ${interaction.user.tag}: ${motivo}`
+
+              );
+
+              removed.push(
+                role.name
+              );
+
+            } catch {}
+          }
+
+          await interaction.reply({
+
+            embeds: [
+
+              new EmbedBuilder()
+
+                .setColor(0xff3333)
+
+                .setTitle(
+                  '📤・EXONERAÇÃO REGISTRADA'
+                )
+
+                .setDescription(
+
+                  [
+                    `👤 **Membro:** ${target}`,
+                    `🛡️ **Responsável:** ${interaction.member}`,
+                    '',
+                    `📝 **Motivo:** ${motivo}`,
+                    '',
+                    `📋 **Cargos removidos:** ${removed.length}`
+                  ].join('\n')
+
+                )
+
+                .setFooter({
+                  text:
+                    '🏴 Pavuna • Administração'
+                })
+
+                .setTimestamp()
+
+            ]
+
+          });
+
+          await sendLog(
+
+            interaction.guild,
+
+            [
+              '📤 **EXONERAÇÃO**',
+              '',
+              `🛡️ Responsável: <@${interaction.user.id}>`,
+              `👤 Membro: <@${target.id}>`,
+              `📝 Motivo: ${motivo}`,
+              `📋 Cargos removidos: ${removed.length}`
+            ].join('\n')
+
+          );
+
+          return;
+        }
+
+
+        /* =================================================
+           PROMOÇÃO
+        ================================================= */
+
+        if (
+          interaction.commandName ===
+          'promocao'
+        ) {
+
+          if (
+            !await requireAdmin(
+              interaction
+            )
+          )
+            return;
+
+          const target =
+            interaction.options
+              .getMember(
+                'membro'
+              );
+
+          const oldRole =
+            interaction.options
+              .getRole(
+                'cargo_antigo'
+              );
+
+          const newRole =
+            interaction.options
+              .getRole(
+                'novo_cargo'
+              );
+
+          const motivo =
+            interaction.options
+              .getString(
+                'motivo'
+              );
+
+          return executarAlteracaoCargo(
+
+            interaction,
+
+            'Promoção',
+
+            target,
+
+            oldRole,
+
+            newRole,
+
+            motivo
+
+          );
+        }
+
+
+        /* =================================================
+           REBAIXAMENTO
+        ================================================= */
+
+        if (
+          interaction.commandName ===
+          'rebaixamento'
+        ) {
+
+          if (
+            !await requireAdmin(
+              interaction
+            )
+          )
+            return;
+
+          const target =
+            interaction.options
+              .getMember(
+                'membro'
+              );
+
+          const oldRole =
+            interaction.options
+              .getRole(
+                'cargo_antigo'
+              );
+
+          const newRole =
+            interaction.options
+              .getRole(
+                'novo_cargo'
+              );
+
+          const motivo =
+            interaction.options
+              .getString(
+                'motivo'
+              );
+
+          return executarAlteracaoCargo(
+
+            interaction,
+
+            'Rebaixamento',
+
+            target,
+
+            oldRole,
+
+            newRole,
+
+            motivo
+
+          );
+        }
+
+
+        /* =================================================
+           BLACKLIST
+        ================================================= */
+
+        if (
+          interaction.commandName ===
+          'blacklist'
+        ) {
+
+          if (
+            !await requireAdmin(
+              interaction
+            )
+          )
+            return;
+
+          const user =
+            interaction.options
+              .getUser(
+                'membro'
+              );
+
+          const existingBan =
+            await interaction.guild.bans
+              .fetch(
+                user.id
+              )
+              .catch(
+                () => null
+              );
+
+          if (
+            existingBan
+          ) {
+
+            try {
+
+              await interaction.guild.members.unban(
+
+                user.id,
+
+                `Blacklist removida por ${interaction.user.tag}`
+
+              );
+
+              await interaction.reply({
+
+                embeds: [
+
+                  new EmbedBuilder()
+
+                    .setColor(0x00cc66)
+
+                    .setTitle(
+                      '♻️・BLACKLIST REMOVIDA'
+                    )
+
+                    .setDescription(
+                      `✅ **${user.tag}** foi removido da blacklist.`
+                    )
+
+                    .setTimestamp()
+
+                ]
+
+              });
+
+              await sendLog(
+
+                interaction.guild,
+
+                [
+                  '♻️ **BLACKLIST REMOVIDA**',
+                  '',
+                  `👤 Usuário: ${user.tag}`,
+                  `🆔 ID: ${user.id}`,
+                  `🛡️ Responsável: <@${interaction.user.id}>`
+                ].join('\n')
+
+              );
+
+            } catch (error) {
+
+              console.error(
+                error
+              );
+
+              return interaction.reply({
+                content:
+                  '❌ Não foi possível remover a blacklist.',
+                ephemeral: true
+              });
+            }
+
+          } else {
+
+            try {
+
+              await interaction.guild.members.ban(
+
+                user.id,
+
+                {
+
+                  deleteMessageSeconds:
+                    0,
+
+                  reason:
+                    `Blacklist por ${interaction.user.tag}`
+
+                }
+
+              );
+
+              await interaction.reply({
+
+                embeds: [
+
+                  new EmbedBuilder()
+
+                    .setColor(0xff0000)
+
+                    .setTitle(
+                      '⛔・BLACKLIST APLICADA'
+                    )
+
+                    .setDescription(
+                      `🚫 **${user.tag}** foi colocado na blacklist.`
+                    )
+
+                    .setTimestamp()
+
+                ]
+
+              });
+
+              await sendLog(
+
+                interaction.guild,
+
+                [
+                  '⛔ **BLACKLIST**',
+                  '',
+                  `👤 Usuário: ${user.tag}`,
+                  `🆔 ID: ${user.id}`,
+                  `🛡️ Responsável: <@${interaction.user.id}>`
+                ].join('\n')
+
+              );
+
+            } catch (error) {
+
+              console.error(
+                error
+              );
+
+              return interaction.reply({
+                content:
+                  '❌ Não foi possível banir o usuário. Verifique a permissão **Banir Membros**.',
+                ephemeral: true
+              });
+            }
+          }
+
+          return;
+        }
+
+        return;
+      }
+
+
+      /* ===================================================
+         MODAL
+      =================================================== */
+
+      if (
+        interaction.isModalSubmit()
+      ) {
+
+        if (
+          interaction.customId ===
+          'modal_registro'
+        ) {
+
+          return realizarRegistro(
+            interaction
+          );
+        }
+      }
+
+
+      /* ===================================================
+         BOTÕES
+      =================================================== */
+
+      if (
+        interaction.isButton()
+      ) {
+
+        /* =================================================
+           REGISTRO
+        ================================================= */
+
+        if (
+          interaction.customId ===
+          'abrir_registro'
+        ) {
+
+          return abrirModalRegistro(
+            interaction
+          );
+        }
+
+
+        /* =================================================
+           EDITAL
+        ================================================= */
+
+        if (
+          interaction.customId ===
+          'fazer_edital'
+        ) {
+
+          return createEditalChannel(
+            interaction
+          );
+        }
+
+
+        /* =================================================
+           PONTO
+        ================================================= */
+
+        if (
+          interaction.customId ===
+          'ponto_comecar'
+        ) {
+
+          return iniciarPonto(
+            interaction
+          );
+        }
+
+        if (
+          interaction.customId ===
+          'ponto_fechar'
+        ) {
+
+          return fecharPonto(
+            interaction
+          );
+        }
+
+        if (
+          interaction.customId ===
+          'ponto_ranking'
+        ) {
+
+          return mostrarRanking(
+            interaction
+          );
+        }
+
+
+        /* =================================================
+           SESSÃO DO EDITAL
+        ================================================= */
+
+        const session =
+          sessions.get(
+            interaction.user.id
+          );
+
+
+        /* =================================================
+           FECHAR EDITAL
+        ================================================= */
+
+        if (
+          interaction.customId ===
+          'fechar_edital'
+        ) {
+
+          const isCandidate =
+            session &&
+            session.channelId ===
+            interaction.channelId;
+
+          const canManage =
+            hasAnyRole(
+              interaction.member,
+              CONFIG.editalAccessRoles
+            ) ||
+            hasAnyRole(
+              interaction.member,
+              CONFIG.adminRoles
+            );
+
+          if (
+            !isCandidate &&
+            !canManage
+          ) {
+
+            return interaction.reply({
+              content:
+                '❌ Você não possui permissão para fechar este edital.',
+              ephemeral: true
+            });
+          }
+
+          if (session) {
+
+            sessions.delete(
+              session.candidateId
+            );
+          }
+
+          await interaction.reply({
+
+            content:
+              '🔒 **Edital encerrado.** O canal será excluído em 5 segundos.'
+
+          });
+
+          return deleteAfter(
+            interaction.channel,
+            'Edital fechado manualmente'
+          );
+        }
+
+
+        /* =================================================
+           INICIAR EDITAL
+        ================================================= */
+
+        if (
+          interaction.customId ===
+          'iniciar_edital'
+        ) {
+
+          if (!session) {
+
+            return interaction.reply({
+              content:
+                '❌ Este edital não está mais ativo.',
+              ephemeral: true
+            });
+          }
+
+          if (
+            session.channelId !==
+            interaction.channelId
+          ) {
+
+            return interaction.reply({
+              content:
+                '❌ Este não é o seu canal de edital.',
+              ephemeral: true
+            });
+          }
+
+          if (
+            session.candidateId !==
+            interaction.user.id
+          ) {
+
+            return interaction.reply({
+              content:
+                '❌ Somente o candidato pode iniciar este edital.',
+              ephemeral: true
+            });
+          }
+
+          if (
+            session.started
+          ) {
+
+            return interaction.reply({
+              content:
+                '⚠️ O edital já foi iniciado.',
+              ephemeral: true
+            });
+          }
+
+          await interaction.deferUpdate();
+
+          return runEdital(
+            interaction.channel,
+            interaction.member
+          );
+        }
+      }
+
+    } catch (error) {
+
+      console.error(
+        '❌ Erro na interação:',
+        error
+      );
+
+      if (
+        interaction.isRepliable() &&
+        !interaction.replied &&
+        !interaction.deferred
+      ) {
+
+        await interaction.reply({
+
+          content:
+            '❌ Ocorreu um erro interno. Verifique os logs do bot.',
+
+          ephemeral: true
+
+        }).catch(
+          () => {}
+        );
+      }
+    }
+  }
+);
+
+
+/* =========================================================
+   ERROS
+========================================================= */
+
+process.on(
+  'unhandledRejection',
+  error => {
+
+    console.error(
+      '❌ Unhandled Rejection:',
+      error
+    );
+
+  }
+);
+
+
+process.on(
+  'uncaughtException',
+  error => {
+
+    console.error(
+      '❌ Uncaught Exception:',
+      error
+    );
+
+  }
+);
+
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+if (
+  !process.env.DISCORD_TOKEN
+) {
+
+  console.error(
+    '❌ DISCORD_TOKEN não foi configurado no Railway.'
   );
 
-  if (
-    type === 'promocao' ||
-    type === 'rebaixamento'
-  ) {
-    const oldRank = new TextInputBuilder()
-      .setCustomId('old_rank')
-      .setLabel('Cargo anterior')
-      .setPlaceholder('Cargo atual')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(100);
-
-    const newRank = new TextInputBuilder()
-      .setCustomId('new_rank')
-      .setLabel('Novo cargo')
-      .setPlaceholder('Novo cargo')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(100);
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(oldRank),
-      new ActionRowBuilder().addComponents(newRank)
-    );
-  }
-
-  return modal;
+  process.exit(1);
 }
 
-/* =========================================================
-   30 — PROCESSAMENTO ADMIN
-========================================================= */
 
-async function processAdminProcedure(
-  interaction,
-  type
-) {
-  if (!isAdmin(interaction.member)) {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'ACESSO RESTRITO',
-          'Você não possui autorização para executar procedimentos administrativos.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  const memberId =
-    interaction.fields
-      .getTextInputValue('member_id')
-      .trim();
-
-  const reason =
-    interaction.fields
-      .getTextInputValue('reason')
-      .trim();
-
-  let member;
-
-  try {
-    member =
-      await interaction.guild.members.fetch(
-        memberId
-      );
-  } catch {
-    return interaction.reply({
-      embeds: [
-        errorEmbed(
-          'MEMBRO NÃO ENCONTRADO',
-          'Não foi possível localizar o membro informado.'
-        )
-      ],
-      ephemeral: true
-    });
-  }
-
-  if (type === 'exoneracao') {
-    const removable =
-      member.roles.cache.filter(role =>
-        role.id !== interaction.guild.id &&
-        !CONFIG.roles.preserveOnExoneration.includes(
-          role.id
-        )
-      );
-
-    await member.roles.remove(removable);
-
-    await logAction(
-      interaction.guild,
-      'EXONERAÇÃO',
-      [
-        `**Membro:** ${member}`,
-        `**Responsável:** ${interaction.user}`,
-        `**Motivo:** ${reason}`
-      ].join('\n'),
-      CONFIG.brand.danger
-    );
-
-    return interaction.reply({
-      embeds: [
-        successEmbed(
-          'EXONERAÇÃO REGISTRADA',
+client.login(
+  process.env.DISCORD_TOKEN
+);
