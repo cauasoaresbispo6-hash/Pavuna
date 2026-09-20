@@ -4389,450 +4389,59 @@ async function processarParticipante(
    COMANDOS
 ========================================================= */
 
-function commandBuilders() {
+function commandBuilders()
 
-  return [
+  return
 
 /* =====================================================
    PAINEL
 ===================================================== */
 
 new SlashCommandBuilder()
-
-  .setName(
-    'painel'
-  )
-
-  .setDescription(
-    '🏴 Gerencia os painéis da Pavuna'
-  )
-
+  .setName('painel')
+  .setDescription('🏴 Gerencia os painéis da Pavuna')
   .setDMPermission(false)
 
-  .addSubcommand(
-    sub =>
-      sub
-        .setName(
-          'edital'
-        )
-        .setDescription(
-          '📜 Envia o painel de recrutamento'
-        )
+  .addSubcommand(sub =>
+    sub
+      .setName('edital')
+      .setDescription('📜 Envia o painel de recrutamento')
   )
 
-  .addSubcommand(
-    sub =>
-      sub
-        .setName(
-          'registrar'
-        )
-        .setDescription(
-          '📝 Envia o painel de registro'
-        )
+  .addSubcommand(sub =>
+    sub
+      .setName('registrar')
+      .setDescription('📝 Envia o painel de registro')
   )
 
-  .addSubcommand(
-    sub =>
-      sub
-        .setName(
-          'ponto'
-        )
-        .setDescription(
-          '🕐 Envia o painel de bate-ponto'
-        )
+  .addSubcommand(sub =>
+    sub
+      .setName('ponto')
+      .setDescription('🕐 Envia o painel de bate-ponto')
   )
 
-      .addSubcommand(
-        sub =>
-          sub
-
-            .setName(
-              'promocao'
-            )
-
-            .setDescription(
-              '📈 Promove um membro'
-            )
-
-            .addUserOption(
-              option =>
-                option
-
-                  .setName(
-                    'membro'
-                  )
-
-                  .setDescription(
-                    '👤 Membro'
-                  )
-
-                  .setRequired(true)
-            )
-
-            .addRoleOption(
-              option =>
-                option
-
-                  .setName(
-                    'cargo_antigo'
-                  )
-
-                  .setDescription(
-                    '📉 Cargo antigo'
-                  )
-
-                  .setRequired(true)
-            )
-
-            .addRoleOption(
-              option =>
-                option
-
-                  .setName(
-                    'novo_cargo'
-                  )
-
-                  .setDescription(
-                    '📈 Novo cargo'
-                  )
-
-                  .setRequired(true)
-            )
-
-            .addStringOption(
-              option =>
-                option
-
-                  .setName(
-                    'motivo'
-                  )
-
-                  .setDescription(
-                    '📝 Motivo'
-                  )
-
-                  .setRequired(true)
-            )
-      )
-
-      .addSubcommand(
-        sub =>
-          sub
-
-            .setName(
-              'rebaixamento'
-            )
-
-            .setDescription(
-              '📉 Rebaixa um membro'
-            )
-
-            .addUserOption(
-              option =>
-                option
-
-                  .setName(
-                    'membro'
-                  )
-
-                  .setDescription(
-                    '👤 Membro'
-                  )
-
-                  .setRequired(true)
-            )
-
-            .addRoleOption(
-              option =>
-                option
-
-                  .setName(
-                    'cargo_antigo'
-                  )
-
-                  .setDescription(
-                    '📈 Cargo antigo'
-                  )
-
-                  .setRequired(true)
-            )
-
-            .addRoleOption(
-              option =>
-                option
-
-                  .setName(
-                    'novo_cargo'
-                  )
-
-                  .setDescription(
-                    '📉 Novo cargo'
-                  )
-
-                  .setRequired(true)
-            )
-
-            .addStringOption(
-              option =>
-                option
-
-                  .setName(
-                    'motivo'
-                  )
-
-                  .setDescription(
-                    '📝 Motivo'
-                  )
-
-                  .setRequired(true)
-            )
-      )
-
-      .toJSON(),
-
-
-    /* =====================================================
-       EXONERAÇÃO
-    ===================================================== */
-
-    new SlashCommandBuilder()
-
-      .setName(
-        'exoneracao'
-      )
-
-      .setDescription(
-        '📤 Exonera um membro'
-      )
-
-      .setDMPermission(false)
-
-      .addUserOption(
-        option =>
-          option
-
-            .setName(
-              'membro'
-            )
-
-            .setDescription(
-              '👤 Membro'
-            )
-
-            .setRequired(true)
-      )
-
-      .addStringOption(
-        option =>
-          option
-
-            .setName(
-              'motivo'
-            )
-
-            .setDescription(
-              '📝 Motivo da exoneração'
-            )
-
-            .setRequired(true)
-      )
-
-      .toJSON(),
-
-
-    /* =====================================================
-       PROMOÇÃO
-    ===================================================== */
-
-    new SlashCommandBuilder()
-
-      .setName(
-        'promocao'
-      )
-
-      .setDescription(
-        '📈 Promove um membro'
-      )
-
-      .setDMPermission(false)
-
-      .addUserOption(
-        option =>
-          option
-
-            .setName(
-              'membro'
-            )
-
-            .setDescription(
-              '👤 Membro'
-            )
-
-            .setRequired(true)
-      )
-
-      .addRoleOption(
-        option =>
-          option
-
-            .setName(
-              'cargo_antigo'
-            )
-
-            .setDescription(
-              '📉 Cargo antigo'
-            )
-
-            .setRequired(true)
-      )
-
-      .addRoleOption(
-        option =>
-          option
-
-            .setName(
-              'novo_cargo'
-            )
-
-            .setDescription(
-              '📈 Novo cargo'
-            )
-
-            .setRequired(true)
-      )
-
-      .addStringOption(
-        option =>
-          option
-
-            .setName(
-              'motivo'
-            )
-
-            .setDescription(
-              '📝 Motivo da promoção'
-            )
-
-            .setRequired(true)
-      )
-
-      .toJSON(),
-
-
-    /* =====================================================
-       REBAIXAMENTO
-    ===================================================== */
-
-    new SlashCommandBuilder()
-
-      .setName(
-        'rebaixamento'
-      )
-
-      .setDescription(
-        '📉 Rebaixa um membro'
-      )
-
-      .setDMPermission(false)
-
-      .addUserOption(
-        option =>
-          option
-
-            .setName(
-              'membro'
-            )
-
-            .setDescription(
-              '👤 Membro'
-            )
-
-            .setRequired(true)
-      )
-
-      .addRoleOption(
-        option =>
-          option
-
-            .setName(
-              'cargo_antigo'
-            )
-
-            .setDescription(
-              '📈 Cargo antigo'
-            )
-
-            .setRequired(true)
-      )
-
-      .addRoleOption(
-        option =>
-          option
-
-            .setName(
-              'novo_cargo'
-            )
-
-            .setDescription(
-              '📉 Novo cargo'
-            )
-
-            .setRequired(true)
-      )
-
-      .addStringOption(
-        option =>
-          option
-
-            .setName(
-              'motivo'
-            )
-
-            .setDescription(
-              '📝 Motivo do rebaixamento'
-            )
-
-            .setRequired(true)
-      )
-
-      .toJSON(),
-
-
-    /* =====================================================
-       BLACKLIST
-    ===================================================== */
-
-    new SlashCommandBuilder()
-
-      .setName(
-        'blacklist'
-      )
-
-      .setDescription(
-        '⛔ Adiciona ou remove um usuário da blacklist'
-      )
-
-      .setDMPermission(false)
-
-      .addUserOption(
-        option =>
-          option
-
-            .setName(
-              'membro'
-            )
-
-            .setDescription(
-              '👤 Usuário'
-            )
-
-            .setRequired(true)
-      )
-
-      .toJSON()
-
-  ];
-}
+  .addSubcommand(sub =>
+    sub
+      .setName('promocao')
+      .setDescription('📈 Promove um membro')
+      // suas opções atuais aqui
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName('rebaixamento')
+      .setDescription('📉 Rebaixa um membro')
+      // suas opções atuais aqui
+  )
+
+  // 👇 ADICIONE ISSO
+  .addSubcommand(sub =>
+    sub
+      .setName('ticket')
+      .setDescription('🎫 Envia o painel de tickets')
+  )
+
+  .toJSON(),
 
 
 /* =========================================================
