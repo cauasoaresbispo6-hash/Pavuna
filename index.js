@@ -13,7 +13,9 @@ const {
   PermissionFlagsBits,
   ModalBuilder,
   TextInputBuilder,
-  TextInputStyle
+  TextInputStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder
 } = require('discord.js');
 
 const fs = require('fs');
@@ -33,7 +35,25 @@ const CONFIG = {
 
   editalImage:
     'https://media.discordapp.net/attachments/1550653825659183144/1550714361973051474/Captura_de_tela_2026-09-19_004348.png?ex=6aaf56ca&is=6aae054a&hm=fd4f3deb9bbe0a581417d2504740aecfd43e72995527cc5bfb8804ec21f06eec&=&format=webp&quality=lossless',
+  ticketImage:
+    'https://media.discordapp.net/attachments/1551129943394492526/1551271126146093157/image.png?ex=6ab15d51&is=6ab00bd1&hm=dfb73fb6da0e56285dd3794dbefb774983871379aee0d5439575bff275610549&=&format=webp&quality=lossless',
 
+  /* =======================================================
+     CARGOS DA EQUIPE DE TICKETS
+  ======================================================= */
+
+  ticketStaffRoles: [
+    '1550615266030002188',
+    '1550615266046644257',
+    '1550615266046644259'
+  ],
+
+  ticketCategoryId:
+    process.env.TICKET_CATEGORY_ID || null,
+
+  ticketLogChannelId:
+    process.env.TICKET_LOG_CHANNEL_ID || null,
+  
   registrarImage:
     'https://media.discordapp.net/attachments/1494717315743350836/1550919367339024384/648a4579-c535-4be5-b1ce-796cc37e6378.png?ex=6ab015b7&is=6aaec437&hm=9f3aaca3870b2a7156ada9d41fabb1613431204ea54008448c2199eb68baa925&=&format=webp&quality=lossless&width=768&height=317',
 
@@ -3047,6 +3067,1323 @@ async function executarAlteracaoCargo(
   );
 }
 
+// ... suas funções anteriores
+
+
+/* =========================================================
+   SISTEMA DE TICKETS
+========================================================= */
+
+/* =========================================================
+   SISTEMA DE TICKETS
+========================================================= */
+
+const ticketCategories = {
+  encomendas: {
+    label: 'Encomendas',
+    emoji: '📦',
+    description: 'Dúvidas ou assuntos relacionados a encomendas.'
+  },
+
+  denuncias: {
+    label: 'Denúncias',
+    emoji: '🚨',
+    description: 'Realize uma denúncia para a administração.'
+  },
+
+  duvidas: {
+    label: 'Dúvidas',
+    emoji: '❓',
+    description: 'Tire suas dúvidas com a equipe.'
+  },
+
+  outros: {
+    label: 'Outros Assuntos',
+    emoji: '📌',
+    description: 'Outros assuntos que não se encaixam nas categorias.'
+  }
+};
+
+
+/* =========================================================
+   EMBED DO PAINEL
+========================================================= */
+
+function ticketPanelEmbed() {
+
+  return new EmbedBuilder()
+
+    .setColor(0x8b0000)
+
+    .setTitle(
+      '🎫・CENTRAL DE ATENDIMENTO • PAVUNA'
+    )
+
+    .setDescription([
+
+      '## 🏴 SISTEMA DE TICKETS',
+
+      '',
+
+      'Olá! Seja bem-vindo à central de atendimento da **Pavuna**.',
+
+      '',
+
+      'Selecione abaixo o motivo do seu atendimento.',
+
+      '',
+
+      '### 📂 CATEGORIAS',
+
+      '📦 **Encomendas**',
+      '> Assuntos relacionados a encomendas.',
+
+      '',
+      '🚨 **Denúncias**',
+      '> Denúncias para a administração.',
+
+      '',
+      '❓ **Dúvidas**',
+      '> Tire suas dúvidas com a equipe.',
+
+      '',
+      '📌 **Outros Assuntos**',
+      '> Para assuntos que não se encaixam nas opções acima.',
+
+      '',
+      '⚠️ **Não abra tickets sem necessidade.**',
+      '🚨 Tickets sem conteúdo poderão ser encerrados pela equipe.',
+
+      '',
+      '🏴 **Pavuna • Atendimento Oficial**'
+
+    ].join('\n'))
+
+    .setImage(
+      CONFIG.ticketImage
+    )
+
+    .setFooter({
+      text:
+        '🏴 Pavuna • Sistema de Tickets'
+    })
+
+    .setTimestamp();
+}
+
+
+/* =========================================================
+   SELECT MENU
+========================================================= */
+
+function ticketSelectMenu() {
+
+  return new ActionRowBuilder()
+
+    .addComponents(
+
+      new (require('discord.js').StringSelectMenuBuilder)()
+
+        .setCustomId(
+          'ticket_categoria'
+        )
+
+        .setPlaceholder(
+          '🎫 Selecione o motivo do atendimento'
+        )
+
+        .addOptions(
+
+          Object.entries(
+            ticketCategories
+          ).map(
+            ([value, data]) =>
+
+              new (require('discord.js').StringSelectMenuOptionBuilder)()
+
+                .setLabel(
+                  data.label
+                )
+
+                .setDescription(
+                  data.description
+                )
+
+                .setEmoji(
+                  data.emoji
+                )
+
+                .setValue(
+                  value
+                )
+          )
+
+        )
+
+    );
+}
+
+
+/* =========================================================
+   VERIFICAR EQUIPE
+========================================================= */
+
+function isTicketStaff(member) {
+
+  return hasAnyRole(
+    member,
+    CONFIG.ticketStaffRoles
+  );
+}
+
+
+/* =========================================================
+   NOME SEGURO DO CANAL
+========================================================= */
+
+function cleanTicketName(text) {
+
+  return text
+
+    .toLowerCase()
+
+    .normalize('NFD')
+
+    .replace(
+      /[\u0300-\u036f]/g,
+      ''
+    )
+
+    .replace(
+      /[^a-z0-9-]/g,
+      '-'
+    )
+
+    .replace(
+      /-+/g,
+      '-'
+    )
+
+    .replace(
+      /^-|-$/g,
+      ''
+    )
+
+    .slice(
+      0,
+      50
+    );
+}
+
+
+/* =========================================================
+   VERIFICAR SE JÁ POSSUI TICKET
+========================================================= */
+
+function usuarioJaTemTicket(
+  guild,
+  userId
+) {
+
+  return guild.channels.cache.some(
+    channel =>
+
+      channel.topic &&
+      channel.topic.includes(
+        `ticketOwner:${userId}`
+      )
+  );
+}
+
+
+/* =========================================================
+   CRIAR TICKET
+========================================================= */
+
+async function criarTicket(
+  interaction,
+  categoria
+) {
+
+  const guild =
+    interaction.guild;
+
+  const member =
+    interaction.member;
+
+  const dados =
+    ticketCategories[categoria];
+
+  if (
+    !dados
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Categoria de ticket inválida.',
+
+      ephemeral: true
+
+    });
+  }
+
+
+  /* =======================================================
+     EVITAR TICKETS DUPLICADOS
+  ======================================================= */
+
+  if (
+    usuarioJaTemTicket(
+      guild,
+      member.id
+    )
+  ) {
+
+    const existente =
+      guild.channels.cache.find(
+
+        channel =>
+
+          channel.topic &&
+          channel.topic.includes(
+            `ticketOwner:${member.id}`
+          )
+
+      );
+
+    return interaction.reply({
+
+      content:
+        `⚠️ Você já possui um ticket aberto: ${existente || 'ticket existente'}`,
+
+      ephemeral: true
+
+    });
+  }
+
+
+  const botMember =
+    guild.members.me;
+
+  if (
+    !botMember
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Não consegui verificar as permissões do bot.',
+
+      ephemeral: true
+
+    });
+  }
+
+
+  /* =======================================================
+     PERMISSÕES
+  ======================================================= */
+
+  const permissionOverwrites = [
+
+    {
+      id:
+        guild.roles.everyone.id,
+
+      deny: [
+
+        PermissionFlagsBits.ViewChannel
+
+      ]
+    },
+
+
+    /* DONO DO TICKET */
+
+    {
+      id:
+        member.id,
+
+      allow: [
+
+        PermissionFlagsBits.ViewChannel,
+
+        PermissionFlagsBits.SendMessages,
+
+        PermissionFlagsBits.ReadMessageHistory,
+
+        PermissionFlagsBits.AttachFiles
+
+      ]
+    },
+
+
+    /* EQUIPE */
+
+    ...CONFIG.ticketStaffRoles.map(
+
+      roleId => ({
+
+        id:
+          roleId,
+
+        allow: [
+
+          PermissionFlagsBits.ViewChannel,
+
+          PermissionFlagsBits.SendMessages,
+
+          PermissionFlagsBits.ReadMessageHistory,
+
+          PermissionFlagsBits.AttachFiles
+
+        ]
+
+      })
+
+    ),
+
+
+    /* BOT */
+
+    {
+      id:
+        botMember.id,
+
+      allow: [
+
+        PermissionFlagsBits.ViewChannel,
+
+        PermissionFlagsBits.SendMessages,
+
+        PermissionFlagsBits.ReadMessageHistory,
+
+        PermissionFlagsBits.ManageChannels,
+
+        PermissionFlagsBits.ManageMessages
+
+      ]
+
+    }
+
+  ];
+
+
+  const nomeUsuario =
+    cleanTicketName(
+      member.user.username
+    );
+
+  const nomeCategoria =
+    cleanTicketName(
+      dados.label
+    );
+
+
+  let channel;
+
+
+  try {
+
+    channel =
+      await guild.channels.create({
+
+        name:
+          `${nomeUsuario}-${nomeCategoria}`,
+
+        type:
+          ChannelType.GuildText,
+
+        parent:
+          CONFIG.ticketCategoryId ||
+          undefined,
+
+        topic:
+          [
+            `ticketOwner:${member.id}`,
+            `category:${categoria}`,
+            'claimedBy:none'
+          ].join('|'),
+
+        permissionOverwrites,
+
+        reason:
+          `Ticket aberto por ${member.user.tag} • ${dados.label}`
+
+      });
+
+  } catch (error) {
+
+    console.error(
+      '❌ Erro ao criar ticket:',
+      error
+    );
+
+    return interaction.reply({
+
+      content:
+        '❌ Não consegui criar o ticket. Verifique se o bot possui **Gerenciar Canais**.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  /* =======================================================
+     EMBED DO TICKET
+  ======================================================= */
+
+  const ticketEmbed =
+
+    new EmbedBuilder()
+
+      .setColor(0x8b0000)
+
+      .setTitle(
+        `${dados.emoji}・TICKET • ${dados.label.toUpperCase()}`
+      )
+
+      .setDescription([
+
+        `👋 Olá, ${member}!`,
+
+        '',
+
+        `📂 **Categoria:** ${dados.label}`,
+
+        '',
+
+        '⏳ **Aguarde um Superior te atender.**',
+
+        '',
+
+        '📝 Explique abaixo com o máximo de detalhes possível o motivo do seu atendimento.',
+
+        '',
+
+        '━━━━━━━━━━━━━━━━━━━━',
+
+        '',
+
+        '🛡️ A equipe poderá reivindicar este atendimento.',
+
+        '🔒 Quando o atendimento terminar, utilize **Fechar**.',
+
+        '',
+        '🏴 **Pavuna • Atendimento Oficial**'
+
+      ].join('\n'))
+
+      .setFooter({
+
+        text:
+          '🏴 Pavuna • Sistema de Tickets'
+
+      })
+
+      .setTimestamp();
+
+
+  await channel.send({
+
+    content:
+      `${member}`,
+
+    embeds: [
+      ticketEmbed
+    ],
+
+    components:
+      ticketActionRows(false)
+
+  });
+
+
+  await interaction.reply({
+
+    content:
+      `✅ **Ticket criado com sucesso!**\n\n🎫 ${channel}`,
+
+    ephemeral: true
+
+  });
+
+
+  await sendTicketLog(
+
+    guild,
+
+    [
+      '🎫 **NOVO TICKET**',
+      '',
+      `👤 Usuário: <@${member.id}>`,
+      `🆔 ID: ${member.id}`,
+      `📂 Categoria: ${dados.label}`,
+      `📌 Canal: ${channel}`,
+      `🕐 Data: <t:${Math.floor(Date.now() / 1000)}:F>`
+    ].join('\n')
+
+  );
+
+}
+
+
+/* =========================================================
+   BOTÕES DO TICKET
+========================================================= */
+
+function ticketActionRows(
+  claimed
+) {
+
+  const buttonsRow =
+
+    new ActionRowBuilder()
+
+      .addComponents(
+
+        new ButtonBuilder()
+
+          .setCustomId(
+            'ticket_reivindicar'
+          )
+
+          .setLabel(
+            'Reivindicar'
+          )
+
+          .setEmoji('🛡️')
+
+          .setStyle(
+            ButtonStyle.Primary
+          )
+
+          .setDisabled(
+            claimed
+          ),
+
+
+        new ButtonBuilder()
+
+          .setCustomId(
+            'ticket_fechar'
+          )
+
+          .setLabel(
+            'Fechar'
+          )
+
+          .setEmoji('🔒')
+
+          .setStyle(
+            ButtonStyle.Danger
+          )
+
+      );
+
+
+  const manageRow =
+
+    new ActionRowBuilder()
+
+      .addComponents(
+
+        new (require('discord.js').StringSelectMenuBuilder)()
+
+          .setCustomId(
+            'ticket_gerenciar'
+          )
+
+          .setPlaceholder(
+            '👤 Gerenciar participantes'
+          )
+
+          .addOptions(
+
+            {
+
+              label:
+                'Adicionar um player',
+
+              description:
+                'Adiciona um membro ao ticket.',
+
+              emoji:
+                '➕',
+
+              value:
+                'adicionar'
+
+            },
+
+            {
+
+              label:
+                'Retirar um player',
+
+              description:
+                'Retira um membro do ticket.',
+
+              emoji:
+                '➖',
+
+              value:
+                'retirar'
+
+            }
+
+          )
+
+      );
+
+
+  return [
+    buttonsRow,
+    manageRow
+  ];
+
+}
+
+
+/* =========================================================
+   LOG DE TICKETS
+========================================================= */
+
+async function sendTicketLog(
+  guild,
+  content
+) {
+
+  const channelId =
+    CONFIG.ticketLogChannelId ||
+    CONFIG.logChannelId;
+
+  if (
+    !channelId
+  )
+    return;
+
+  const channel =
+    guild.channels.cache.get(
+      channelId
+    );
+
+  if (
+    !channel?.isTextBased()
+  )
+    return;
+
+  await channel.send({
+    content
+  }).catch(
+    () => {}
+  );
+
+}
+
+
+/* =========================================================
+   PEGAR DONO DO TICKET
+========================================================= */
+
+function getTicketOwnerId(
+  channel
+) {
+
+  if (
+    !channel?.topic
+  )
+    return null;
+
+  const match =
+    channel.topic.match(
+      /ticketOwner:(\d+)/
+    );
+
+  return match
+    ? match[1]
+    : null;
+
+}
+
+
+/* =========================================================
+   REIVINDICAR TICKET
+========================================================= */
+
+async function reivindicarTicket(
+  interaction
+) {
+
+  if (
+    !isTicketStaff(
+      interaction.member
+    )
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Somente a equipe autorizada pode reivindicar tickets.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  const channel =
+    interaction.channel;
+
+
+  if (
+    !channel?.topic ||
+    !channel.topic.includes(
+      'ticketOwner:'
+    )
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Este canal não é um ticket.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  const match =
+    channel.topic.match(
+      /claimedBy:([^|]+)/
+    );
+
+
+  if (
+    match &&
+    match[1] !== 'none'
+  ) {
+
+    return interaction.reply({
+
+      content:
+        `⚠️ Este ticket já foi reivindicado por <@${match[1]}>.`,
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  const novoTopic =
+    channel.topic.replace(
+
+      /claimedBy:[^|]+/,
+
+      `claimedBy:${interaction.user.id}`
+
+    );
+
+
+  await channel.setTopic(
+    novoTopic
+  );
+
+
+  await interaction.message.edit({
+
+    components:
+      ticketActionRows(true)
+
+  }).catch(
+    () => {}
+  );
+
+
+  await interaction.reply({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0x00cc66)
+
+        .setTitle(
+          '🛡️・TICKET REIVINDICADO'
+        )
+
+        .setDescription([
+
+          `👤 **Responsável:** ${interaction.user}`,
+
+          '',
+
+          '✅ Este atendimento foi assumido por um membro da equipe.',
+
+          'Aguarde enquanto o atendimento é realizado.'
+
+        ].join('\n'))
+
+        .setTimestamp()
+
+    ]
+
+  });
+
+
+  await sendTicketLog(
+
+    interaction.guild,
+
+    [
+      '🛡️ **TICKET REIVINDICADO**',
+      '',
+      `👑 Responsável: <@${interaction.user.id}>`,
+      `🎫 Canal: ${channel}`,
+      `👤 Dono: <@${getTicketOwnerId(channel)}>`
+    ].join('\n')
+
+  );
+
+}
+
+
+/* =========================================================
+   FECHAR TICKET
+========================================================= */
+
+async function fecharTicket(
+  interaction
+) {
+
+  const channel =
+    interaction.channel;
+
+  const ownerId =
+    getTicketOwnerId(
+      channel
+    );
+
+
+  if (
+    !ownerId
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Este canal não é um ticket.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  const isOwner =
+    interaction.user.id ===
+    ownerId;
+
+  const isStaff =
+    isTicketStaff(
+      interaction.member
+    );
+
+
+  if (
+    !isOwner &&
+    !isStaff
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Somente o dono do ticket ou a equipe pode fechá-lo.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  await sendTicketLog(
+
+    interaction.guild,
+
+    [
+      '🔒 **TICKET FECHADO**',
+      '',
+      `🎫 Canal: ${channel.name}`,
+      `👤 Dono: <@${ownerId}>`,
+      `🛡️ Fechado por: <@${interaction.user.id}>`
+    ].join('\n')
+
+  );
+
+
+  await interaction.reply({
+
+    embeds: [
+
+      new EmbedBuilder()
+
+        .setColor(0xff3333)
+
+        .setTitle(
+          '🔒・TICKET ENCERRADO'
+        )
+
+        .setDescription(
+          'Este ticket será excluído automaticamente em **5 segundos**.'
+        )
+
+        .setTimestamp()
+
+    ]
+
+  });
+
+
+  setTimeout(
+
+    () => {
+
+      channel
+        .delete(
+          'Ticket encerrado'
+        )
+        .catch(
+          () => {}
+        );
+
+    },
+
+    5000
+
+  );
+
+}
+
+
+/* =========================================================
+   MODAL DE PARTICIPANTE
+========================================================= */
+
+function participanteModal(
+  acao
+) {
+
+  const modal =
+
+    new ModalBuilder()
+
+      .setCustomId(
+        `ticket_participante:${acao}`
+      )
+
+      .setTitle(
+
+        acao === 'adicionar'
+
+          ? '➕ Adicionar Player'
+
+          : '➖ Retirar Player'
+
+      );
+
+
+  const idInput =
+
+    new TextInputBuilder()
+
+      .setCustomId(
+        'player_id'
+      )
+
+      .setLabel(
+        'ID do Player'
+      )
+
+      .setPlaceholder(
+        'Ex: 123456789012345678'
+      )
+
+      .setStyle(
+        TextInputStyle.Short
+      )
+
+      .setMinLength(15)
+
+      .setMaxLength(25)
+
+      .setRequired(true);
+
+
+  modal.addComponents(
+
+    new ActionRowBuilder()
+      .addComponents(
+        idInput
+      )
+
+  );
+
+
+  return modal;
+
+}
+
+
+/* =========================================================
+   GERENCIAR PARTICIPANTE
+========================================================= */
+
+async function gerenciarParticipante(
+  interaction,
+  acao
+) {
+
+  if (
+    !isTicketStaff(
+      interaction.member
+    )
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Somente a equipe pode gerenciar participantes.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  return interaction.showModal(
+
+    participanteModal(
+      acao
+    )
+
+  );
+
+}
+
+
+/* =========================================================
+   PROCESSAR PARTICIPANTE
+========================================================= */
+
+async function processarParticipante(
+  interaction,
+  acao
+) {
+
+  const id =
+    interaction.fields
+      .getTextInputValue(
+        'player_id'
+      )
+      .trim();
+
+
+  if (
+    !/^\d{15,25}$/.test(id)
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Informe um ID válido do Discord.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  const ownerId =
+    getTicketOwnerId(
+      interaction.channel
+    );
+
+
+  if (
+    !ownerId
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Este canal não é um ticket.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  if (
+    acao === 'retirar' &&
+    id === ownerId
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ O dono original do ticket não pode ser retirado.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  const member =
+    await interaction.guild.members
+      .fetch(id)
+      .catch(
+        () => null
+      );
+
+
+  if (
+    !member
+  ) {
+
+    return interaction.reply({
+
+      content:
+        '❌ Não encontrei esse player no servidor.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+
+  try {
+
+    if (
+      acao === 'adicionar'
+    ) {
+
+      await interaction.channel.permissionOverwrites.edit(
+
+        member.id,
+
+        {
+
+          ViewChannel:
+            true,
+
+          SendMessages:
+            true,
+
+          ReadMessageHistory:
+            true,
+
+          AttachFiles:
+            true
+
+        }
+
+      );
+
+
+      await interaction.reply({
+
+        content:
+          `✅ ${member} foi **adicionado** ao ticket.`,
+
+        ephemeral: false
+
+      });
+
+
+      await sendTicketLog(
+
+        interaction.guild,
+
+        [
+          '➕ **PLAYER ADICIONADO AO TICKET**',
+          '',
+          `👤 Player: <@${member.id}>`,
+          `🛡️ Responsável: <@${interaction.user.id}>`,
+          `🎫 Canal: ${interaction.channel}`
+        ].join('\n')
+
+      );
+
+    } else {
+
+      await interaction.channel.permissionOverwrites
+        .delete(
+          member.id
+        );
+
+
+      await interaction.reply({
+
+        content:
+          `✅ ${member} foi **retirado** do ticket.`,
+
+        ephemeral: false
+
+      });
+
+
+      await sendTicketLog(
+
+        interaction.guild,
+
+        [
+          '➖ **PLAYER RETIRADO DO TICKET**',
+          '',
+          `👤 Player: <@${member.id}>`,
+          `🛡️ Responsável: <@${interaction.user.id}>`,
+          `🎫 Canal: ${interaction.channel}`
+        ].join('\n')
+
+      );
+
+    }
+
+  } catch (error) {
+
+    console.error(
+      '❌ Erro ao gerenciar participante:',
+      error
+    );
+
+
+    return interaction.reply({
+
+      content:
+        '❌ Não foi possível alterar o acesso deste player.',
+
+      ephemeral: true
+
+    });
+
+  }
+
+}
 
 /* =========================================================
    COMANDOS
