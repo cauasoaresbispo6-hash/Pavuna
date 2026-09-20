@@ -4391,8 +4391,6 @@ async function processarParticipante(
 
 function commandBuilders()
 
-  return
-
 /* =====================================================
    PAINEL
 ===================================================== */
