@@ -4783,8 +4783,39 @@ client.on(
 
             );
           }
-        }
 
+
+          /* -----------------------------------------------
+             TICKETS
+          ----------------------------------------------- */
+
+          if (
+            tipo ===
+            'ticket'
+          ) {
+
+            await interaction.channel.send({
+
+              embeds: [
+                ticketPanelEmbed()
+              ],
+
+              components: [
+                ticketSelectMenu()
+              ]
+
+            });
+
+            return interaction.reply({
+
+              content:
+                '🎫 **Painel de tickets enviado!**',
+
+              ephemeral: true
+
+            });
+          }
+        }
 
         /* =================================================
            EXONERAÇÃO
