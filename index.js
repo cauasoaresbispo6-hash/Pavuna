@@ -4389,8 +4389,8 @@ async function processarParticipante(
    COMANDOS
 ========================================================= */
 
-function commandBuilders()
-
+function commandBuilders() {
+    return [
 /* =====================================================
    PAINEL
 ===================================================== */
