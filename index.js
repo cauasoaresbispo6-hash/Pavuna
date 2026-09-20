@@ -4397,55 +4397,50 @@ function commandBuilders() {
    PAINEL
 ===================================================== */
 
-  .addSubcommand(sub =>
-    sub
-      .setName('ticket')
-      .setDescription('🎫 Envia o painel de tickets')
+new SlashCommandBuilder()
+
+  .setName(
+    'painel'
   )
-      .setDescription(
-        '🏴 Gerencia os painéis da Pavuna'
-      )
 
-      .setDMPermission(false)
+  .setDescription(
+    '🏴 Gerencia os painéis da Pavuna'
+  )
 
-      .addSubcommand(
-        sub =>
-          sub
+  .setDMPermission(false)
 
-            .setName(
-              'edital'
-            )
+  .addSubcommand(
+    sub =>
+      sub
+        .setName(
+          'edital'
+        )
+        .setDescription(
+          '📜 Envia o painel de recrutamento'
+        )
+  )
 
-            .setDescription(
-              '📜 Envia o painel de recrutamento'
-            )
-      )
+  .addSubcommand(
+    sub =>
+      sub
+        .setName(
+          'registrar'
+        )
+        .setDescription(
+          '📝 Envia o painel de registro'
+        )
+  )
 
-      .addSubcommand(
-        sub =>
-          sub
-
-            .setName(
-              'registrar'
-            )
-
-            .setDescription(
-              '📝 Envia o painel de registro'
-            )
-      )
-
-      .addSubcommand(
-        sub =>
-          sub
-
-            .setName(
-              'ponto'
-            )
-
-            .setDescription(
-              '🕐 Envia o painel de bate-ponto'
-            )
-      )
+  .addSubcommand(
+    sub =>
+      sub
+        .setName(
+          'ponto'
+        )
+        .setDescription(
+          '🕐 Envia o painel de bate-ponto'
+        )
+  )
 
       .addSubcommand(
         sub =>
